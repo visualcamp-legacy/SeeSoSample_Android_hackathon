@@ -5,7 +5,7 @@ android {
     compileSdkVersion rootProject.compileSdkVersion
 
     defaultConfig {
-        applicationId "visual.camp.sample.launcher"
+        applicationId "visual.camp.sample.app"
         minSdkVersion rootProject.minSdkVersion
         targetSdkVersion rootProject.targetSdkVersion
         versionCode 1
@@ -28,7 +28,6 @@ dependencies {
 
     implementation "androidx.appcompat:appcompat:${appcompatVersion}"
     implementation "androidx.constraintlayout:constraintlayout:${constraintlayoutVersion}"
-    implementation "androidx.recyclerview:recyclerview:${androidXRecyclerview}"
     implementation project(":libgaze-release")
     implementation project(":truegaze-release")
 

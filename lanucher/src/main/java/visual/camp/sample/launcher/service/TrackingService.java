@@ -12,8 +12,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Color;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -22,9 +21,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.Display;
-import android.view.Surface;
-import android.view.WindowManager;
 import android.widget.RemoteViews;
 import android.widget.Toast;
 
@@ -35,20 +31,19 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
+import camp.visual.truegaze.TrueGaze;
+import camp.visual.truegaze.callback.CalibrationCallback;
+import camp.visual.truegaze.callback.GazeCallback;
+import camp.visual.truegaze.callback.LifeCallback;
 import visual.camp.sample.launcher.R;
+import visual.camp.sample.launcher.device.GazeDevice;
 import visual.camp.sample.launcher.service.inter.TrackingServiceInterface;
-import visual.camp.vmex.SCREEN_ORIENTATION;
-import visual.camp.vmex.VMEX;
-import visual.camp.vmex.callback.GazeCallback;
-import visual.camp.vmex.callback.VMEXCallback;
 
-// 일단 구버전으로
 abstract public class TrackingService extends Service {
     private static final String TAG = TrackingService.class.getSimpleName();
 
     private Handler uiHandler = new Handler(Looper.getMainLooper());
-    protected VMEX vmex;
-    private WindowManager windowManager;
+    private TrueGaze trueGaze;
 
     private TrackingServiceInterface trackingServiceInterface;
 
@@ -62,7 +57,6 @@ abstract public class TrackingService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "onCreate");
-        windowManager = (WindowManager)getApplicationContext().getSystemService(WINDOW_SERVICE);
         trackingServiceInterface = getTrackingServiceInterface();
         startNotification();
         if (!checkNotificationEnable()) {
@@ -87,7 +81,7 @@ abstract public class TrackingService extends Service {
         notificationHandler.sendEmptyMessageDelayed(MSG_INFO, TIME_INFO);
 
         if (checkPermission()) {
-            initVMEX();
+            initGaze();
         }
     }
 
@@ -103,7 +97,8 @@ abstract public class TrackingService extends Service {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
         removeNotification();
-        releaseVMEX();
+        releaseGaze();
+        notificationHandler.removeMessages(MSG_INFO);
         notificationThread.quitSafely();
     }
 
@@ -131,7 +126,6 @@ abstract public class TrackingService extends Service {
 
     private boolean checkPermission() {
         return isGrantedPermissions(
-                permission.SYSTEM_ALERT_WINDOW,
                 permission.CAMERA);
     }
 
@@ -157,204 +151,153 @@ abstract public class TrackingService extends Service {
     }
     // permission end
 
-    private SCREEN_ORIENTATION getOrientation() {
-        // other => gal tab s4
-        // portrait => landscape_r
-        // landscape => portrait
-        // portrait_r => landscape
-        // landscape_r => portrait_r
-        // 이미 릴리즈 되어 windowManager가 null이 된 상태에서 openCamera가 늦게 호출되어 이게 호출되면 에러가 발생하는데, 일단 그런경우 카메라가 열려있으면 닫는걸로 처리함
-
-        // portrait: 0, portrait_r: 1, landscape: 2, landscape_r: 3
-        final Display display = windowManager.getDefaultDisplay();
-        final int rotation = display.getRotation();
-        final Point size = new Point();
-        display.getSize(size);
-        Log.d(TAG, "chk orientation displaySize: " + size.x + "x" + size.y + ", rotation: " + rotation);
-        int result;
-        if (rotation == Surface.ROTATION_0
-                || rotation == Surface.ROTATION_180) {
-            // if rotation is 0 or 180 and width is greater than height, we have
-            // a tablet
-            if (size.x > size.y) {
-                if (rotation == Surface.ROTATION_0) {
-                    return SCREEN_ORIENTATION.LANDSCAPE;
-                } else {
-                    return SCREEN_ORIENTATION.LANDSCAPE_R;
-                }
-            } else {
-                // we have a phone
-                if (rotation == Surface.ROTATION_0) {
-                    return SCREEN_ORIENTATION.PORTRAIT;
-                } else {
-                    return SCREEN_ORIENTATION.PORTRAIT_R;
-                }
-            }
-        } else {
-            // if rotation is 90 or 270 and width is greater than height, we
-            // have a phone
-            if (size.x > size.y) {
-                if (rotation == Surface.ROTATION_90) {
-                    return SCREEN_ORIENTATION.LANDSCAPE;
-                } else {
-                    return SCREEN_ORIENTATION.LANDSCAPE_R;
-                }
-            } else {
-                // we have a tablet
-                if (rotation == Surface.ROTATION_90) {
-                    return SCREEN_ORIENTATION.PORTRAIT_R;
-                } else {
-                    return SCREEN_ORIENTATION.PORTRAIT;
-                }
-            }
-        }
-    }
-
-    // vmex
-    private void initVMEX() {
-        vmex = new VMEX(this, getOrientation(), false, vmexCallback, gazeCallback);
+    // trueGaze
+    private void initGaze() {
+        // 화면의 스크린 좌표를 가져옴
+        PointF screenOrigin = GazeDevice.getDeviceScreenOrigin(Build.MODEL);
+        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback);
         setRemoteViewTGStatus(TG_STATUS_TRY_INIT, true);
     }
 
-    private boolean isVmexNonNull() {
-        return vmex != null;
+    private boolean isGazeNonNull() {
+        return trueGaze != null;
     }
 
     private boolean isTracking;
-    private boolean isCalibrating;
 
-    public void startTracking() {
-        if (isVmexNonNull()) {
-            Log.i(TAG, "startTracking");
-            vmex.startTracking();
-            isTracking = true;
-            updateNotiView();
-        }
-    }
-    public void stopTracking() {
-        if (isVmexNonNull()) {
-            Log.i(TAG, "stopTracking");
-            vmex.stopTracking();
+    // 카메라가 동작해 시선 추적을 하는지 체크
+    private boolean checkTracking() {
+        if (isGazeNonNull()) {
+            isTracking = trueGaze.isTracking();
+        } else {
             isTracking = false;
-            isCalibrating = false;
+        }
+        return isTracking;
+    }
+
+    // 카메라를 열고 시선 추적 시작
+    protected void startTracking() {
+        if (isGazeNonNull()) {
+            Log.i(TAG, "startTracking");
+            isTracking = true; // startTracking을 시작하면 카메라가 무조건 동작해 시선 추적을 한다 가정
+            // 만약 문제가 생기면 LifeCallback의 onCameraError이 호출
+            trueGaze.startTracking();
             updateNotiView();
         }
     }
-    public void startCalibration() {
-        if (isVmexNonNull()) {
+
+    // 카메라를 닫고 시선 추적 중단
+    protected void stopTracking() {
+        if (isGazeNonNull()) {
+            Log.i(TAG, "stopTracking");
+            isTracking = false;
+            trueGaze.stopTracking();
+            updateNotiView();
+        }
+    }
+
+    // 캘리브레이션 시작
+    protected void startCalibration() {
+        if (isGazeNonNull()) {
             Log.i(TAG, "startCalibration");
-            vmex.startCalibration();
-            isCalibrating = true;
+            if (checkTracking()) {
+                // 전체화면 기준 캘리브레이션
+                trueGaze.startCalibrationInWholeScreen();
+            } else {
+                showToast("Start Gaze Tracking!", true);
+            }
             updateNotiView();
         }
     }
-    public void stopCalibration() {
-        if (isVmexNonNull()) {
+    protected void stopCalibration() {
+        if (isGazeNonNull()) {
             Log.i(TAG, "stopCalibration");
-            vmex.stopCalibration();
-            isCalibrating = false;
+            trueGaze.stopCalibration();
             updateNotiView();
         }
     }
 
-    public void updateNotiView() {
-        setRemoteViewButtonTracking(isTracking, isVmexNonNull(), false);
-        setRemoteViewButtonCalibration(isCalibrating, isVmexNonNull() && isTracking, true);
+    private void updateNotiView() {
+        setRemoteViewButtonTracking(isTracking, isGazeNonNull(), true);
     }
-//    public void setFilterType(int type) {
-//        if (isVmexNonNull()) {
-//            Log.i(TAG, "setFilterType " + type);
-//            vmex.setFilterType(type);
-//        }
-//    }
 
-    public void releaseVMEX() {
-        if (isVmexNonNull()) {
-            vmex.stopCalibration();
-            vmex.release();
-            vmex = null;
+    protected void releaseGaze() {
+        if (isGazeNonNull()) {
+            trueGaze.stopCalibration();
+            trueGaze.release();
+            trueGaze = null;
         }
     }
 
-    private VMEXCallback vmexCallback = new VMEXCallback() {
+    private LifeCallback lifeCallback = new LifeCallback() {
         @Override
         public void onInitialized() {
-            vmex.setCalibrationBackgroundColor(Color.argb(255, 0, 0, 0), Color.argb(80, 255, 0, 0));
-            vmex.setCalibrationBackgroundColorVisibility(true);
+            // 초기화 성공
             if (trackingServiceInterface != null) {
                 trackingServiceInterface.onInitialized();
             }
             setRemoteViewTGStatus(TG_STATUS_INITED, true);
             updateNotiView();
-//            startTracking();
+            startTracking();
         }
 
         @Override
         public void onInitializeFailed(int i) {
+            // 초기화 실패
             if (trackingServiceInterface != null) {
                 trackingServiceInterface.onInitializeFailed(i);
             }
-            vmex = null;
+            trueGaze = null;
             setRemoteViewTGStatus(TG_STATUS_INIT_FAIL, true);
             updateNotiView();
         }
+
+        @Override
+        public void onCameraError() {
+            // 카메라 에러 발생, 대표적으로 시선 추적 중 다른 카메라 사용 어플리케이션을 동작시킬경우 에러가 발생하는 경우가 있음
+            // 카메라2에서 발생하는 모든에러는 전부 발생가능함
+            isTracking = false;
+            Log.e(TAG, "camera error occur " + isTracking);
+            updateNotiView();
+            showToast("Camera Error Occur!!", true);
+        }
     };
+
+    // 시선 정보를 받는 콜백, 기능 추가나 수정 예정
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(long timestamp, float x, float y, int type) {
+            // type 설명
+            // GazeState.TRACKING: 시선 좌표
+            // GazeState.CALIBRATING: 캘리브레이션 중
+            // GazeState.FACE_MISSING: 얼굴이 잡히지 못한 상태(시선좌표는 NaN)
+            // GazeState.OUT_OF_SCREEN: 시선 좌표가 화면 밖에 위치할시
             if (trackingServiceInterface != null) {
                 trackingServiceInterface.onGaze(timestamp, x, y, type);
             }
         }
+    };
 
+    // 캘리브레이션을 진행하기 위한 콜백
+    private CalibrationCallback calibrationCallback = new CalibrationCallback() {
         @Override
-        public void onCalibrationStarted() {
-            isCalibrating = true;
-            updateNotiView();
-        }
-
-        @Override
-        public void onCalibrationProcess(float v, float v1, float v2) {
-
+        public void onCalibrationProcess(float progress, float x, float y) {
+            // progress 1: 좌표를 설정
+            // progress 1미만: 캘리브레이션 진행도(0~1)
+            if (trackingServiceInterface != null) {
+                trackingServiceInterface.onCalibrationProcess(progress, x, y);
+            }
         }
 
         @Override
         public void onCalibrationFinished() {
-            isCalibrating = false;
-            updateNotiView();
-        }
-
-        @Override
-        public void onPortraitLookUp() {
-
-        }
-
-        @Override
-        public void onPortraitLookCenter() {
-
-        }
-
-        @Override
-        public void onPortraitLookDown() {
-
-        }
-
-        @Override
-        public void onLandscapeLookLeft() {
-
-        }
-
-        @Override
-        public void onLandscapeLookCenter() {
-
-        }
-
-        @Override
-        public void onLandscapeLookRight() {
-
+            // 캘리브레이션 중단
+            if (trackingServiceInterface != null) {
+                trackingServiceInterface.onCalibrationFinished();
+            }
         }
     };
-    // vmex end
+    // trueGaze end
 
     // ui
     // ------notification------
@@ -419,11 +362,6 @@ abstract public class TrackingService extends Service {
     // foreground permission 필요, 런타임 퍼미션이 아니라 선언만 해도 된다.
     private void startNotification(){
         createNotificationChannel();
-        // 알려줄곳이 액티비티면 아래처럼 해야함 원격서비스라 액티비티를 안쓰고 브로드캐스트로 처리함
-//        Intent notificationIntent = new Intent(RemoteApplication.getContext(), TrackingService.class);
-//        PendingIntent pendingIntent = PendingIntent.getActivity(RemoteApplication.getContext(),
-//                0, notificationIntent, 0);
-
         Intent notificationIntent = new Intent(NOTIFICATION_ACTION_RECEIVER);
         notificationIntent.setAction(ACTION_CHECK_STATUS);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, notificationIntent, 0);
@@ -434,11 +372,6 @@ abstract public class TrackingService extends Service {
         PendingIntent pTrackIntent = PendingIntent.getBroadcast(this, 0, trackIntent, 0);
         mContentView.setOnClickPendingIntent(R.id.btn_tracking, pTrackIntent);
 
-        Intent calibIntent = new Intent(NOTIFICATION_ACTION_RECEIVER);
-        calibIntent.setAction(ACTION_CALIBRATION);
-        PendingIntent pCalibIntent = PendingIntent.getBroadcast(this, 0, calibIntent, 0);
-        mContentView.setOnClickPendingIntent(R.id.btn_calibration, pCalibIntent);
-
         Intent quitIntent = new Intent(NOTIFICATION_ACTION_RECEIVER);
         quitIntent.setAction(ACTION_QUIT);
         PendingIntent pQuitIntent = PendingIntent.getBroadcast(this, 0, quitIntent, 0);
@@ -448,16 +381,12 @@ abstract public class TrackingService extends Service {
                 .setSmallIcon(R.drawable.vc_logo_new)
                 .setContentIntent(pendingIntent)
                 .setCustomContentView(mContentView);
-//        .setCustomBigContentView(mContentView); // 큰 노티피케이션, 크긴 한데 직접 확대해야하는 문제가 있음 높이 제한은 256dp라고 하는데 일단 200dp 넘어가는건 확인함
-
-//        setNotInitStatus();
         startForeground(NOTIFICATION_ID, notificationBuilder.build());
 
         // 노티피케이션 이벤트 리시버 등록
         IntentFilter intentFilter = new IntentFilter(NOTIFICATION_ACTION_RECEIVER);
         intentFilter.addAction(ACTION_CHECK_STATUS);
         intentFilter.addAction(ACTION_TRACKING);
-        intentFilter.addAction(ACTION_CALIBRATION);
         intentFilter.addAction(ACTION_QUIT);
         registerReceiver(notificationActionReceiver, intentFilter);
     }
@@ -467,28 +396,19 @@ abstract public class TrackingService extends Service {
         // 노티피케이션 리시버 삭제
         unregisterReceiver(notificationActionReceiver);
 
-        // 일반적으로 채널은 안지우는게 맞기 때문에 주석처리
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            // 채널을 삭제하면 그냥 날라가는것 같음, 버그로 안날라가는걸 한번 봤는데 서비스 다시 키고 끄면 날라갔음 애매한데
-//            // 다른 앱을 보니 채널은 일단 남아있는것으로 보이고 그걸로 설정할수 있도록 하는데 없애는게 맞는지 모르겠다..
-//            NotificationManagerCompat.from(this).deleteNotificationChannel(CHANNEL_ID);
-//        }
-
         // cancel이후 노티를 업데이트 하면 stopForeground호출해도 노티가 그대로 남아버림, 이상태에서 앱의 알람 설정에서 채널을 비활성했다가 활성화시 노티가 날라가는걸로 보아 그냥 유령처럼 실제로는 없는데 보이는 상태인듯
         NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID);
         // startForeground했으니 stopForeground해야할것 같음
         stopForeground(true);
-        Log.i(TAG, "RT Service stop foreground");
+        Log.i(TAG, "Service stop foreground");
     }
 
     // 노티는 1초 이내에 자주 업데이트하면 누락된다고 문서에 써있음, 그러니 일단 노티 업데이트를 최소화하고 서비스가 살아있는 동안 백그라운드로 노티를 1초마다 갱신시킨다.
     private void updateNotification() {
         if (!isStopForeground) {
-//            Log.i(TAG, "RT Service chk notification " + NotificationManagerCompat.from(this).areNotificationsEnabled() + ", " + NotificationManagerCompat.from(this).getImportance());
-//            Log.i(TAG, "RT Service chk notification channel " + NotificationManagerCompat.from(this).getNotificationChannel(CHANNEL_ID).getImportance());
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notificationBuilder.build());
         } else {
-            Log.i(TAG, "RT Service foreground stopped");
+            Log.i(TAG, "Service foreground stopped");
         }
     }
 
@@ -528,25 +448,9 @@ abstract public class TrackingService extends Service {
         }
     }
 
-    // 노티에 캘리브레이션 조작 버튼 설정
-    private void setRemoteViewButtonCalibration(boolean isCalibrationProcess, boolean enable, boolean isUpdate) {
-        if (mContentView != null) {
-            Log.i(TAG, "notification btn Calib, isCalibrationProcess: " + isCalibrationProcess + ", enable: " + enable);
-            if (isCalibrationProcess) {
-                mContentView.setImageViewResource(R.id.btn_calibration, enable ? R.drawable.ic_clear_black_48dp : R.drawable.ic_clear_white_48dp);
-            } else {
-                mContentView.setImageViewResource(R.id.btn_calibration, enable ? R.drawable.ic_remove_red_eye_black_48dp : R.drawable.ic_remove_red_eye_white_48dp);
-            }
-            if (isUpdate) {
-                updateNotification();
-            }
-        }
-    }
-
     // notification event broadcast receiver
     public static final String ACTION_CHECK_STATUS = "action.checkStatus";
     public static final String ACTION_TRACKING = "action.tracking";
-    public static final String ACTION_CALIBRATION = "action.calibration";
     public static final String ACTION_QUIT = "action.quit";
 
     // 노티피케이션 버튼 액션 처리 리시버
@@ -557,15 +461,7 @@ abstract public class TrackingService extends Service {
 
             assert action != null;
             Log.i(TAG, "onReceive " + action + " on " + Thread.currentThread());
-            if (action.equals(ACTION_CALIBRATION)) {
-                if (isCalibrating) {
-                    // 캘리브레이션 도중이니 중단
-                    stopCalibration();
-                } else {
-                    // 캘리브레이션 시작
-                    startCalibration();
-                }
-            }if (action.equals(ACTION_TRACKING)) {
+            if (action.equals(ACTION_TRACKING)) {
                 if (isTracking) {
                     // 트래킹 도중이니 중단
                     stopTracking();
@@ -579,9 +475,9 @@ abstract public class TrackingService extends Service {
             } else if (action.equals(ACTION_CHECK_STATUS)) {
                 if (checkPermission()) {
                     // 모든 퍼미션이 있을때
-                    if (!isVmexNonNull()) {
+                    if (!isGazeNonNull()) {
                         // 초기화 안되어있으면 초기화
-                        initVMEX();
+                        initGaze();
                     } else {
                         showToast("TrueGaze is initialized", true);
                     }

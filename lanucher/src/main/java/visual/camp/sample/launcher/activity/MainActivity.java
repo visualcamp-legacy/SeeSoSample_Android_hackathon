@@ -16,7 +16,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Rect;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -28,24 +27,26 @@ import android.widget.Toast;
 
 import java.util.List;
 
+import camp.visual.truegaze.GazeState;
+import camp.visual.truegaze.util.ViewLayoutChecker;
 import visual.camp.sample.launcher.R;
 import visual.camp.sample.launcher.common.CONFIG;
 import visual.camp.sample.launcher.data.AppData;
 import visual.camp.sample.launcher.data.AppDataManager;
 import visual.camp.sample.launcher.service.direct.TrackingDirectService;
 import visual.camp.sample.launcher.view.AppAdapter;
-import visual.camp.sample.launcher.view.PointView;
+import visual.camp.sample.view.CalibrationViewer;
+import visual.camp.sample.view.PointView;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final String[] PERMISSIONS = new String[]{
-            Manifest.permission.CAMERA, // 시선 추적 input
-            Manifest.permission.SYSTEM_ALERT_WINDOW
+            Manifest.permission.CAMERA // 시선 추적 input
     };
     private static final int REQ_PERMISSION = 1000;
-    private static final int REQ_OVERLAY_PERMISSION = 1001;
     private Class clazz = TrackingDirectService.class;
     private AppDataManager appDataManager;
+    private ViewLayoutChecker viewLayoutChecker = new ViewLayoutChecker(); // view의 offset을 구하는 유틸
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Log.i(TAG, "onResume");
+        // 화면 전환후에도 체크하기 위해
+        checkServiceConnection();
+        setOffsetOfView();
     }
 
     @Override
@@ -89,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        viewLayoutChecker.releaseChecker();
         appAdapter.release();
         unregisterServiceReceiver();
         unregisterAppReceiver();
@@ -99,8 +104,10 @@ public class MainActivity extends AppCompatActivity {
     private View layoutProgress;
     private PointView viewPoint;
     private Button btnStartService, btnStopService;
+    private Button btnStartCalibration, btnStopCalibration;
     private RecyclerView rcyApp;
     private AppAdapter appAdapter;
+    private CalibrationViewer viewCalibration;
     private void initView() {
         layoutProgress = findViewById(R.id.layout_progress);
         layoutProgress.setOnClickListener(null);
@@ -110,6 +117,11 @@ public class MainActivity extends AppCompatActivity {
         btnStartService.setOnClickListener(onClickListener);
         btnStopService.setOnClickListener(onClickListener);
 
+        btnStartCalibration = findViewById(R.id.btn_start_calibration);
+        btnStopCalibration = findViewById(R.id.btn_stop_calibration);
+        btnStartCalibration.setOnClickListener(onClickListener);
+        btnStopCalibration.setOnClickListener(onClickListener);
+
         rcyApp = findViewById(R.id.rcy_app);
         rcyApp.setLayoutManager(new LinearLayoutManager(this));
         appAdapter = new AppAdapter();
@@ -117,6 +129,21 @@ public class MainActivity extends AppCompatActivity {
         rcyApp.setAdapter(appAdapter);
 
         viewPoint = findViewById(R.id.view_point);
+        viewCalibration = findViewById(R.id.view_calibration);
+        setOffsetOfView();
+    }
+
+    // 시선 좌표나 캘리브레이션 좌표는 전체 스크린 좌표로만 전달되는데
+    // 안드로이드 스크린 좌표계는 액션바, 상태바, 네비게이션바를 고려안한 좌표계라
+    // 이 offset을 구해 보정해줘야 제대로 스크린에 정보를 보여줄수 있음
+    private void setOffsetOfView() {
+        viewLayoutChecker.setOverlayView(viewPoint, new ViewLayoutChecker.ViewLayoutListener() {
+            @Override
+            public void getOffset(int x, int y) {
+                viewPoint.setOffset(x, y);
+                viewCalibration.setOffset(x, y);
+            }
+        });
     }
 
     private AppAdapter.ItemClickListener itemClickListener = new AppAdapter.ItemClickListener() {
@@ -132,7 +159,6 @@ public class MainActivity extends AppCompatActivity {
 
                 ActivityOptionsCompat activityOptions = ActivityOptionsCompat.makeBasic();
                 activityOptions.setLaunchBounds(rect);
-
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     // window 형태
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
@@ -175,6 +201,10 @@ public class MainActivity extends AppCompatActivity {
                 startService();
             } else if (v == btnStopService) {
                 stopService();
+            } else if (v == btnStartCalibration) {
+                startCalibration();
+            } else if (v == btnStopCalibration) {
+                stopCalibration();
             }
         }
     };
@@ -187,6 +217,47 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    private void showGazePoint(final float x, final float y, final int type) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewPoint.setType(type == GazeState.TRACKING ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
+                viewPoint.setPosition(x, y);
+            }
+        });
+    }
+
+    private void setCalibrationPoint(final float x, final float y) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewCalibration.setVisibility(View.VISIBLE);
+                viewCalibration.changeDraw(true, null);
+                viewCalibration.setPointPosition(x, y);
+                viewCalibration.setPointAnimationPower(0);
+            }
+        });
+    }
+
+    private void setCalibrationProgress(final float progress) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewCalibration.setPointAnimationPower(progress);
+            }
+        });
+    }
+
+    private void hideCalibrationView() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewCalibration.setVisibility(View.INVISIBLE);
+            }
+        });
+    }
+
     // view end
 
     // permission
@@ -194,12 +265,6 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             //퍼미션 상태 확인
             if (!hasPermissions(PERMISSIONS)) {
-
-                //퍼미션 허가 안되어있다면 사용자에게 요청
-                if (!Settings.canDrawOverlays(this)) {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
-                    startActivityForResult(intent, REQ_OVERLAY_PERMISSION);
-                }
                 requestPermissions(PERMISSIONS, REQ_PERMISSION);
             } else {
                 checkPermission(true);
@@ -271,8 +336,25 @@ public class MainActivity extends AppCompatActivity {
                     long timestamp = intent.getLongExtra(CONFIG.INTENT_GAZE_TIMESTAMP, -1);
                     int state = intent.getIntExtra(CONFIG.INTENT_GAZE_TYPE, -1);
                     if (gazeCoord != null) {
-                        viewPoint.setPosition(gazeCoord[0], gazeCoord[1]);
+                        if (state != GazeState.FACE_MISSING && state != GazeState.CALIBRATING) {
+                            showGazePoint(gazeCoord[0], gazeCoord[1], state);
+                        }
                     }
+                } else if (action.equals(CONFIG.ACTION_CALIBRATING)) {
+                    final float progress = intent.getFloatExtra(CONFIG.INTENT_CALIB_PROGRESS, -1);
+                    final float[] calibCoord = intent.getFloatArrayExtra(CONFIG.INTENT_CALIB_COORD);
+                    if (progress != -1 && calibCoord != null) {
+                        if (progress == 1) {
+                            // 캘리브레이션 좌표 설정
+                            setCalibrationPoint(calibCoord[0], calibCoord[1]);
+                        } else {
+                            // 캘리브레이션 진행도 보여줌
+                            setCalibrationProgress(progress);
+                        }
+                    }
+                } else if (action.equals(CONFIG.ACTION_CALIBRATED)) {
+                    // 캘리브레이션 종료
+                    hideCalibrationView();
                 }
             }
         }
@@ -281,6 +363,8 @@ public class MainActivity extends AppCompatActivity {
     private void registerServiceReceiver() {
         IntentFilter intentFilter = new IntentFilter(CONFIG.RECEIVER_GAZE_INFO);
         intentFilter.addAction(CONFIG.ACTION_ON_GAZE);
+        intentFilter.addAction(CONFIG.ACTION_CALIBRATING);
+        intentFilter.addAction(CONFIG.ACTION_CALIBRATED);
         registerReceiver(directServiceActivityReceiver, intentFilter);
     }
 
@@ -304,9 +388,21 @@ public class MainActivity extends AppCompatActivity {
         checkServiceConnection();
     }
 
+    private void startCalibration() {
+        Intent calibIntent = new Intent(CONFIG.RECEIVER_DIRECT_SERVICE);
+        calibIntent.setAction(CONFIG.ACTION_START_CALIBRATION);
+        sendBroadcast(calibIntent);
+    }
+
+    private void stopCalibration() {
+        Intent calibIntent = new Intent(CONFIG.RECEIVER_DIRECT_SERVICE);
+        calibIntent.setAction(CONFIG.ACTION_STOP_CALIBRATION);
+        sendBroadcast(calibIntent);
+        hideCalibrationView();
+    }
+
     private boolean isServiceRunning() {
         ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        // deprecate되었어도 자신의 서비스만은 가져올수 있음, 본래는 원격 서비스도 되던건가? 다른 대안은 없는듯 그냥 써야할듯
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE))
         {
             if (clazz.getName().equals(service.service.getClassName()))
@@ -320,6 +416,8 @@ public class MainActivity extends AppCompatActivity {
     private void checkServiceConnection() {
         btnStartService.setEnabled(!isServiceRunning());
         btnStopService.setEnabled(isServiceRunning());
+        btnStartCalibration.setEnabled(isServiceRunning());
+        btnStopCalibration.setEnabled(isServiceRunning());
     }
     // service end
 

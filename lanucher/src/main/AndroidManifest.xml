@@ -4,7 +4,6 @@
 
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 
     <application
         android:allowBackup="true"
@@ -17,7 +16,8 @@
             android:name="visual.camp.sample.launcher.activity.MainActivity"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
-            android:screenOrientation="unspecified">
+            android:configChanges="uiMode"
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <!-- The following two intent-filters are the key to set homescreen -->

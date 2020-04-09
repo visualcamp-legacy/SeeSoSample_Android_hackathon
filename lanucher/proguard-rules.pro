@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# 난독화 예외 필요!!
+-keep interface camp.visual.libgaze.callbacks.LibGazeCallback {
+  *;
+}
