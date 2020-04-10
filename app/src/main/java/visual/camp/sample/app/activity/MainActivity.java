@@ -1,16 +1,12 @@
 package visual.camp.sample.app.activity;
 
 import android.Manifest;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
@@ -20,7 +16,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityOptionsCompat;
 import androidx.core.content.ContextCompat;
 
 import camp.visual.truegaze.GazeState;
@@ -147,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void permissionGranted() {
-
+        initGaze();
     }
     // permission end
 
@@ -169,7 +164,7 @@ public class MainActivity extends AppCompatActivity {
         btnInitGaze = findViewById(R.id.btn_init_gaze);
         btnReleaseGaze = findViewById(R.id.btn_release_gaze);
         btnInitGaze.setOnClickListener(onClickListener);
-        btnStopTracking.setOnClickListener(onClickListener);
+        btnReleaseGaze.setOnClickListener(onClickListener);
 
         btnStartTracking = findViewById(R.id.btn_start_tracking);
         btnStopTracking = findViewById(R.id.btn_stop_tracking);
@@ -190,7 +185,9 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             // textureView가 사용가능할때만 설정 가능
-
+            if (isGazeNonNull()) {
+                trueGaze.setDisplay(preview);
+            }
         }
 
         @Override
@@ -312,6 +309,24 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void setView() {
+        Log.i(TAG, "gaze : " + isGazeNonNull() + ", tracking " + isTracking());
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                btnInitGaze.setEnabled(!isGazeNonNull());
+                btnReleaseGaze.setEnabled(isGazeNonNull());
+                btnStartTracking.setEnabled(isGazeNonNull() && !isTracking());
+                btnStopTracking.setEnabled(isGazeNonNull() && isTracking());
+                btnStartCalibration.setEnabled(isGazeNonNull() && isTracking());
+                btnStopCalibration.setEnabled(isGazeNonNull() && isTracking());
+                if (!isTracking()) {
+                    hideCalibrationView();
+                }
+            }
+        });
+    }
+
     // view end
 
     // trueGaze
@@ -332,58 +347,85 @@ public class MainActivity extends AppCompatActivity {
                 trueGaze.setDisplay(preview);
             }
             startTracking();
+            hideProgress();
         }
 
         @Override
         public void onInitializeFailed(int i) {
             trueGaze = null;
+            hideProgress();
         }
 
         @Override
-        public void onCameraError() {
-
+        public void onCameraClose(boolean b) {
+            setView();
         }
+
     };
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(long timestamp, float x, float y, int state) {
-
+            if (state != GazeState.FACE_MISSING && state != GazeState.CALIBRATING) {
+                showGazePoint(x, y, state);
+            }
         }
     };
     private CalibrationCallback calibrationCallback = new CalibrationCallback() {
         @Override
         public void onCalibrationProcess(float progress, float x, float y) {
-
+            if (progress == 1) {
+                setCalibrationPoint(x, y);
+            } else {
+                setCalibrationProgress(progress);
+            }
         }
 
         @Override
         public void onCalibrationFinished() {
-
+            hideCalibrationView();
         }
     };
 
     private void initGaze() {
+        showProgress();
         PointF screenOrigin = GazeDevice.getDeviceScreenOrigin(Build.MODEL);
         trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback);
     }
 
     private void releaseGaze() {
-
+        if (isGazeNonNull()) {
+            trueGaze.release();
+            trueGaze = null;
+        }
+        setView();
     }
 
     private void startTracking() {
-
+        if (isGazeNonNull()) {
+            trueGaze.startTracking();
+        }
+        setView();
     }
 
     private void stopTracking() {
-
+        if (isGazeNonNull()) {
+            trueGaze.stopTracking();
+        }
+        setView();
     }
 
     private void startCalibration() {
-
+        if (isGazeNonNull()) {
+            trueGaze.startCalibrationInWholeScreen();
+        }
+        setView();
     }
 
     private void stopCalibration() {
-
+        if (isGazeNonNull()) {
+            trueGaze.stopCalibration();
+        }
+        hideCalibrationView();
+        setView();
     }
 }

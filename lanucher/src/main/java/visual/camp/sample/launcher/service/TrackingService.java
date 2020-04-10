@@ -253,8 +253,8 @@ abstract public class TrackingService extends Service {
         }
 
         @Override
-        public void onCameraError() {
-            // 카메라 에러 발생, 대표적으로 시선 추적 중 다른 카메라 사용 어플리케이션을 동작시킬경우 에러가 발생하는 경우가 있음
+        public void onCameraClose(boolean isError) {
+            // isError가 참이면 카메라 에러 발생, 대표적으로 시선 추적 중 다른 카메라 사용 어플리케이션을 동작시킬경우 에러가 발생하는 경우가 있음
             // 카메라2에서 발생하는 모든에러는 전부 발생가능함
             isTracking = false;
             Log.e(TAG, "camera error occur " + isTracking);
