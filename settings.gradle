@@ -1,3 +1,4 @@
 rootProject.name='SDKSample'
 include ':libgaze-release', ':truegaze-release'
 include ':lanucher', ':app'
+include ':view'

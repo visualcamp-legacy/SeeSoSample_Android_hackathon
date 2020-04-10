@@ -29,6 +29,7 @@ dependencies {
     implementation "androidx.appcompat:appcompat:${appcompatVersion}"
     implementation "androidx.constraintlayout:constraintlayout:${constraintlayoutVersion}"
     implementation "androidx.recyclerview:recyclerview:${androidXRecyclerview}"
+    implementation project(":view")
     implementation project(":libgaze-release")
     implementation project(":truegaze-release")
 
