@@ -18,6 +18,7 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import camp.visual.truegaze.EyeMovementState;
 import camp.visual.truegaze.GazeState;
 import camp.visual.truegaze.TrueGaze;
 import camp.visual.truegaze.callback.CalibrationCallback;
@@ -390,14 +391,22 @@ public class MainActivity extends AppCompatActivity {
     private EyeMovementCallback eyeMovementCallback = new EyeMovementCallback() {
         @Override
         public void onEyeMovement(long timestamp, float x, float y, int state) {
-
+            String type = "UNKNOWN";
+            if (state == EyeMovementState.FIXATION) {
+                type = "FIXATION";
+            } else if (state == EyeMovementState.SACCADE) {
+                type = "SACCADE";
+            } else {
+                type = "UNKNOWN";
+            }
+            Log.i(TAG, "check eyeMovement timestamp: " + timestamp + " (" + x + "x" + y + ") : " + type);
         }
     };
 
     private void initGaze() {
         showProgress();
         PointF screenOrigin = GazeDevice.getDeviceScreenOrigin(Build.MODEL);
-        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback);
+        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
     }
 
     private void releaseGaze() {

@@ -31,8 +31,10 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
+import camp.visual.truegaze.EyeMovementState;
 import camp.visual.truegaze.TrueGaze;
 import camp.visual.truegaze.callback.CalibrationCallback;
+import camp.visual.truegaze.callback.EyeMovementCallback;
 import camp.visual.truegaze.callback.GazeCallback;
 import camp.visual.truegaze.callback.LifeCallback;
 import visual.camp.sample.launcher.R;
@@ -155,7 +157,7 @@ abstract public class TrackingService extends Service {
     private void initGaze() {
         // 화면의 스크린 좌표를 가져옴
         PointF screenOrigin = GazeDevice.getDeviceScreenOrigin(Build.MODEL);
-        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback);
+        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
         setRemoteViewTGStatus(TG_STATUS_TRY_INIT, true);
     }
 
@@ -300,6 +302,21 @@ abstract public class TrackingService extends Service {
             if (trackingServiceInterface != null) {
                 trackingServiceInterface.onCalibrationFinished();
             }
+        }
+    };
+
+    private EyeMovementCallback eyeMovementCallback = new EyeMovementCallback() {
+        @Override
+        public void onEyeMovement(long timestamp, float x, float y, int state) {
+            String type = "UNKNOWN";
+            if (state == EyeMovementState.FIXATION) {
+                type = "FIXATION";
+            } else if (state == EyeMovementState.SACCADE) {
+                type = "SACCADE";
+            } else {
+                type = "UNKNOWN";
+            }
+            Log.i(TAG, "check eyeMovement timestamp: " + timestamp + " (" + x + "x" + y + ") : " + type);
         }
     };
     // trueGaze end
