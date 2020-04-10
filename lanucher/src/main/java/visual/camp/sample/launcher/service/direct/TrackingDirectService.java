@@ -101,5 +101,12 @@ public class TrackingDirectService extends TrackingService {
             gazeDataIntent.setAction(CONFIG.ACTION_CALIBRATED);
             sendBroadcast(gazeDataIntent);
         }
+
+        @Override
+        public void onCameraClosed() {
+            Intent gazeDataIntent = new Intent(CONFIG.RECEIVER_GAZE_INFO);
+            gazeDataIntent.setAction(CONFIG.ACTION_CAMERA_STOPPED);
+            sendBroadcast(gazeDataIntent);
+        }
     };
 }

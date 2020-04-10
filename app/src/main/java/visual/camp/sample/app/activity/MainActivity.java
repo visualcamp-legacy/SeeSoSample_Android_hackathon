@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat;
 import camp.visual.truegaze.GazeState;
 import camp.visual.truegaze.TrueGaze;
 import camp.visual.truegaze.callback.CalibrationCallback;
+import camp.visual.truegaze.callback.EyeMovementCallback;
 import camp.visual.truegaze.callback.GazeCallback;
 import camp.visual.truegaze.callback.LifeCallback;
 import camp.visual.truegaze.util.ViewLayoutChecker;
@@ -383,6 +384,13 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCalibrationFinished() {
             hideCalibrationView();
+        }
+    };
+
+    private EyeMovementCallback eyeMovementCallback = new EyeMovementCallback() {
+        @Override
+        public void onEyeMovement(long timestamp, float x, float y, int state) {
+
         }
     };
 

@@ -355,6 +355,9 @@ public class MainActivity extends AppCompatActivity {
                 } else if (action.equals(CONFIG.ACTION_CALIBRATED)) {
                     // 캘리브레이션 종료
                     hideCalibrationView();
+                } else if (action.equals(CONFIG.ACTION_CAMERA_STOPPED)) {
+                    // 카메라가 종료되거나 에러가 발생해 멈춘상황, 캘리브레이션 도중 발생할수도 있어서 추가됨
+                    hideCalibrationView();
                 }
             }
         }
@@ -365,6 +368,7 @@ public class MainActivity extends AppCompatActivity {
         intentFilter.addAction(CONFIG.ACTION_ON_GAZE);
         intentFilter.addAction(CONFIG.ACTION_CALIBRATING);
         intentFilter.addAction(CONFIG.ACTION_CALIBRATED);
+        intentFilter.addAction(CONFIG.ACTION_CAMERA_STOPPED);
         registerReceiver(directServiceActivityReceiver, intentFilter);
     }
 
@@ -386,6 +390,7 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "stopService ");
         stopService(new Intent(getApplicationContext(), clazz));
         checkServiceConnection();
+        hideCalibrationView();
     }
 
     private void startCalibration() {
