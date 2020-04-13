@@ -159,13 +159,10 @@ public class MainActivity extends AppCompatActivity {
 
                 ActivityOptionsCompat activityOptions = ActivityOptionsCompat.makeBasic();
                 activityOptions.setLaunchBounds(rect);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    // window 형태
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
-                } else {
-                    // 24 이전은 window 형태 지원 안함
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-                }
+
+                // 24 이전은 freeform 형태 아예 지원 안함
+                // 갤럭시 s7(24)은 안되고 tab5e(28), tabs6lite(29)는 동작함, 기기마다 동작이 다를수 도 있을듯
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
                 startActivity(intent, activityOptions.toBundle());
 
             }
