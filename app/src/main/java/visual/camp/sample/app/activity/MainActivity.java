@@ -503,8 +503,8 @@ public class MainActivity extends AppCompatActivity {
     private void initGaze() {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
-        String stage = "dev_1o9b6j3w8e0py27a95p8yfz85n3u6snyu2j04m3x";
-        String licenseKey = stage;
+        // todo 라이센스 키 변경 필요
+        String licenseKey = "dev_1o9b6j3w8e0py27a95p8yfz85n3u6snyu2j04m3x";
         trueGaze = new TrueGaze(getApplicationContext(), gazeDevice, licenseKey, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
     }
 
