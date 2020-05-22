@@ -27,7 +27,7 @@ import android.widget.Toast;
 
 import java.util.List;
 
-import camp.visual.truegaze.GazeState;
+import camp.visual.truegaze.state.GazeState;
 import camp.visual.truegaze.util.ViewLayoutChecker;
 import visual.camp.sample.launcher.R;
 import visual.camp.sample.launcher.common.CONFIG;

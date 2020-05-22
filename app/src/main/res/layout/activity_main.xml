@@ -51,6 +51,46 @@
             android:text="stop calibration" />
     </LinearLayout>
 
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/sw_use_gaze_filter"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/holo_blue_bright"
+        android:text="use gaze filter"/>
+    <LinearLayout
+        app:layout_constraintTop_toBottomOf="@id/sw_use_gaze_filter"
+        app:layout_constraintLeft_toLeftOf="parent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <androidx.appcompat.widget.AppCompatTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/holo_blue_bright"
+            android:text="calibration type"/>
+        <RadioGroup
+            android:id="@+id/rg_calibration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <androidx.appcompat.widget.AppCompatRadioButton
+                android:id="@+id/rb_calibration_one"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/holo_blue_bright"
+                android:text="1-point"/>
+            <androidx.appcompat.widget.AppCompatRadioButton
+                android:id="@+id/rb_calibration_five"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/holo_blue_bright"
+                android:text="5-point"/>
+        </RadioGroup>
+    </LinearLayout>
+
+    <!-- 시선 좌표 -->
     <visual.camp.sample.view.PointView
         android:id="@+id/view_point"
         android:layout_width="match_parent"

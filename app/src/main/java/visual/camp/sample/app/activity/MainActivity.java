@@ -2,32 +2,37 @@ package visual.camp.sample.app.activity;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.graphics.PointF;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
 
-import camp.visual.truegaze.EyeMovementState;
-import camp.visual.truegaze.GazeState;
 import camp.visual.truegaze.TrueGaze;
 import camp.visual.truegaze.callback.CalibrationCallback;
 import camp.visual.truegaze.callback.EyeMovementCallback;
 import camp.visual.truegaze.callback.GazeCallback;
 import camp.visual.truegaze.callback.LifeCallback;
+import camp.visual.truegaze.device.GazeDevice;
+import camp.visual.truegaze.state.EyeMovementState;
+import camp.visual.truegaze.state.GazeState;
 import camp.visual.truegaze.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
-import visual.camp.sample.app.device.GazeDevice;
 import visual.camp.sample.view.CalibrationViewer;
 import visual.camp.sample.view.PointView;
 
@@ -39,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQ_PERMISSION = 1000;
     private TrueGaze trueGaze;
     private ViewLayoutChecker viewLayoutChecker = new ViewLayoutChecker();
+    private HandlerThread backgroundThread = new HandlerThread("background");
+    private Handler backgroundHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
 
         initView();
         checkPermission();
+        initHandler();
     }
 
     @Override
@@ -78,9 +86,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        releaseHandler();
         viewLayoutChecker.releaseChecker();
         releaseGaze();
     }
+
+    // handler
+
+    private void initHandler() {
+        backgroundThread.start();
+        backgroundHandler = new Handler(backgroundThread.getLooper());
+    }
+
+    private void releaseHandler() {
+        backgroundThread.quitSafely();
+    }
+
+    // handler end
 
     // permission
     private void checkPermission() {
@@ -156,6 +178,15 @@ public class MainActivity extends AppCompatActivity {
     private Button btnStartTracking, btnStopTracking;
     private Button btnStartCalibration, btnStopCalibration;
     private CalibrationViewer viewCalibration;
+
+    // 시선 좌표 필터 관련
+    private SwitchCompat swUseGazeFilter;
+    private boolean isUseGazeFilter = true;
+    // 캘리브레이션 방식 관련
+    private RadioGroup rgCalibration;
+    private static final int CALIBRATION_ONE_POINT = 1;
+    private static final int CALIBRATION_FIVE_POINTS = 2;
+    private int calibrationType = CALIBRATION_ONE_POINT;
     private void initView() {
         layoutProgress = findViewById(R.id.layout_progress);
         layoutProgress.setOnClickListener(null);
@@ -180,8 +211,44 @@ public class MainActivity extends AppCompatActivity {
 
         viewPoint = findViewById(R.id.view_point);
         viewCalibration = findViewById(R.id.view_calibration);
+
+        swUseGazeFilter = findViewById(R.id.sw_use_gaze_filter);
+        rgCalibration = findViewById(R.id.rg_calibration);
+
+        swUseGazeFilter.setChecked(isUseGazeFilter);
+        RadioButton rbCalibrationOne = findViewById(R.id.rb_calibration_one);
+        RadioButton rbCalibrationFive = findViewById(R.id.rb_calibration_five);
+        if (calibrationType == CALIBRATION_ONE_POINT) {
+            rbCalibrationOne.setChecked(true);
+        } else {
+            rbCalibrationFive.setChecked(true);
+        }
+
+        swUseGazeFilter.setOnCheckedChangeListener(onCheckedChangeSwitch);
+        rgCalibration.setOnCheckedChangeListener(onCheckedChangeRadioButton);
         setOffsetOfView();
     }
+
+    private RadioGroup.OnCheckedChangeListener onCheckedChangeRadioButton = new RadioGroup.OnCheckedChangeListener() {
+        @Override
+        public void onCheckedChanged(RadioGroup group, int checkedId) {
+            if (group == rgCalibration) {
+                if (checkedId == R.id.rb_calibration_one) {
+                    calibrationType = CALIBRATION_ONE_POINT;
+                } else if (checkedId == R.id.rb_calibration_five) {
+                    calibrationType = CALIBRATION_FIVE_POINTS;
+                }
+            }
+        }
+    };
+    private SwitchCompat.OnCheckedChangeListener onCheckedChangeSwitch = new CompoundButton.OnCheckedChangeListener() {
+        @Override
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            if (buttonView == swUseGazeFilter) {
+                isUseGazeFilter = isChecked;
+            }
+        }
+    };
 
     private TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
@@ -354,6 +421,18 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onInitializeFailed(int i) {
+            String err = "";
+            if (i == TrueGaze.ERROR_PERMISSION) {
+                // 카메라 퍼미션이 없는 경우
+                err = "required permission not granted";
+            } else if (i == TrueGaze.ERROR_AUTHENTICATE) {
+                // 인증 실패
+                err = "authentication failed";
+            } else  {
+                // gaze library 초기화 실패(메모리 부족등의 이유로 초기화 실패)
+                err = "init gaze library fail";
+            }
+            Log.w(TAG, "error description: " + err);
             trueGaze = null;
             hideProgress();
         }
@@ -367,8 +446,19 @@ public class MainActivity extends AppCompatActivity {
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(long timestamp, float x, float y, int state) {
-            if (state != GazeState.FACE_MISSING && state != GazeState.CALIBRATING) {
-                showGazePoint(x, y, state);
+            if (!isUseGazeFilter) {
+                if (state != GazeState.FACE_MISSING && state != GazeState.CALIBRATING) {
+                    showGazePoint(x, y, state);
+                }
+            }
+        }
+
+        @Override
+        public void onFilteredGaze(long timestamp, float x, float y, int state) {
+            if (isUseGazeFilter) {
+                if (state != GazeState.CALIBRATING) {
+                    showGazePoint(x, y, state);
+                }
             }
         }
     };
@@ -377,6 +467,13 @@ public class MainActivity extends AppCompatActivity {
         public void onCalibrationProcess(float progress, float x, float y) {
             if (progress == 1) {
                 setCalibrationPoint(x, y);
+                // 캘리브레이션 좌표가 설정된후 1초간 대기한후 샘플을 수집, 눈이 좌표를 찾고나서 캘리브레이션을 진행해야함
+                backgroundHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        startCollectSamples();
+                    }
+                }, 1000);
             } else {
                 setCalibrationProgress(progress);
             }
@@ -405,8 +502,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void initGaze() {
         showProgress();
-        PointF screenOrigin = GazeDevice.getDeviceScreenOrigin(Build.MODEL);
-        trueGaze = new TrueGaze(getApplicationContext(), screenOrigin, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
+        GazeDevice gazeDevice = new GazeDevice();
+        String stage = "dev_1o9b6j3w8e0py27a95p8yfz85n3u6snyu2j04m3x";
+        String licenseKey = stage;
+        trueGaze = new TrueGaze(getApplicationContext(), gazeDevice, licenseKey, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
     }
 
     private void releaseGaze() {
@@ -431,9 +530,35 @@ public class MainActivity extends AppCompatActivity {
         setView();
     }
 
+    // 5점 캘리브레이션 시작
     private void startCalibration() {
         if (isGazeNonNull()) {
+            if (calibrationType == CALIBRATION_ONE_POINT) {
+                startOnePointCalibration();
+            } else {
+                startFivePointCalibration();
+            }
+        }
+        setView();
+    }
+
+    private void startFivePointCalibration() {
+        if (isGazeNonNull()) {
             trueGaze.startCalibrationInWholeScreen();
+        }
+    }
+
+    // 1점 캘리브레이션 시작
+    private void startOnePointCalibration() {
+        if (isGazeNonNull()) {
+            trueGaze.startOnePointCalibrationInWholeScreen();
+        }
+    }
+
+    // 캘리브레이션에 사용되는 샘플을 수집
+    private void startCollectSamples() {
+        if (isGazeNonNull()) {
+            trueGaze.startCollectSamples();
         }
         setView();
     }
