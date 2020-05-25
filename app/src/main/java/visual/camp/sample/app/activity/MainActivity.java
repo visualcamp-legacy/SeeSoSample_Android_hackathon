@@ -504,7 +504,7 @@ public class MainActivity extends AppCompatActivity {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
         // todo 라이센스 키 변경 필요
-        String licenseKey = "dev_1o9b6j3w8e0py27a95p8yfz85n3u6snyu2j04m3x";
+        String licenseKey = "dev_qhbvkvxxpkdxkg7fcxks7hf7galsdjj8rt13lyh6";
         trueGaze = new TrueGaze(getApplicationContext(), gazeDevice, licenseKey, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
     }
 
