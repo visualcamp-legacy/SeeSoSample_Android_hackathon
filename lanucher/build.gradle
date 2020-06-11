@@ -31,7 +31,7 @@ dependencies {
     implementation "androidx.recyclerview:recyclerview:${androidXRecyclerview}"
     implementation project(":view")
     implementation project(":libgaze-release")
-    implementation project(":truegaze-release")
+    implementation project(':gazetracker-release')
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'

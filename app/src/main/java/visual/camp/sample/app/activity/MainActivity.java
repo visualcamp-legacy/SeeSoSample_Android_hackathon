@@ -23,15 +23,19 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
 
-import camp.visual.truegaze.TrueGaze;
-import camp.visual.truegaze.callback.CalibrationCallback;
-import camp.visual.truegaze.callback.EyeMovementCallback;
-import camp.visual.truegaze.callback.GazeCallback;
-import camp.visual.truegaze.callback.LifeCallback;
-import camp.visual.truegaze.device.GazeDevice;
-import camp.visual.truegaze.state.EyeMovementState;
-import camp.visual.truegaze.state.GazeState;
-import camp.visual.truegaze.util.ViewLayoutChecker;
+import camp.visual.gazetracker.GazeTracker;
+import camp.visual.gazetracker.callback.CalibrationCallback;
+import camp.visual.gazetracker.callback.EyeMovementCallback;
+import camp.visual.gazetracker.callback.GazeCallback;
+import camp.visual.gazetracker.callback.InitializationCallback;
+import camp.visual.gazetracker.callback.StatusCallback;
+import camp.visual.gazetracker.constant.CalibrationModeType;
+import camp.visual.gazetracker.constant.InitializationErrorType;
+import camp.visual.gazetracker.constant.StatusErrorType;
+import camp.visual.gazetracker.device.GazeDevice;
+import camp.visual.gazetracker.state.EyeMovementState;
+import camp.visual.gazetracker.state.TrackingState;
+import camp.visual.gazetracker.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
 import visual.camp.sample.view.CalibrationViewer;
 import visual.camp.sample.view.PointView;
@@ -42,7 +46,7 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.CAMERA // 시선 추적 input
     };
     private static final int REQ_PERMISSION = 1000;
-    private TrueGaze trueGaze;
+    private GazeTracker gazeTracker;
     private ViewLayoutChecker viewLayoutChecker = new ViewLayoutChecker();
     private HandlerThread backgroundThread = new HandlerThread("background");
     private Handler backgroundHandler;
@@ -184,9 +188,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isUseGazeFilter = true;
     // 캘리브레이션 방식 관련
     private RadioGroup rgCalibration;
-    private static final int CALIBRATION_ONE_POINT = 1;
-    private static final int CALIBRATION_FIVE_POINTS = 2;
-    private int calibrationType = CALIBRATION_ONE_POINT;
+    private int calibrationType = CalibrationModeType.DEFAULT;
     private void initView() {
         layoutProgress = findViewById(R.id.layout_progress);
         layoutProgress.setOnClickListener(null);
@@ -218,9 +220,10 @@ public class MainActivity extends AppCompatActivity {
         swUseGazeFilter.setChecked(isUseGazeFilter);
         RadioButton rbCalibrationOne = findViewById(R.id.rb_calibration_one);
         RadioButton rbCalibrationFive = findViewById(R.id.rb_calibration_five);
-        if (calibrationType == CALIBRATION_ONE_POINT) {
+        if (calibrationType == CalibrationModeType.ONE_POINT) {
             rbCalibrationOne.setChecked(true);
         } else {
+            // default, five_point는 5점
             rbCalibrationFive.setChecked(true);
         }
 
@@ -234,9 +237,9 @@ public class MainActivity extends AppCompatActivity {
         public void onCheckedChanged(RadioGroup group, int checkedId) {
             if (group == rgCalibration) {
                 if (checkedId == R.id.rb_calibration_one) {
-                    calibrationType = CALIBRATION_ONE_POINT;
+                    calibrationType = CalibrationModeType.ONE_POINT;
                 } else if (checkedId == R.id.rb_calibration_five) {
-                    calibrationType = CALIBRATION_FIVE_POINTS;
+                    calibrationType = CalibrationModeType.FIVE_POINT;
                 }
             }
         }
@@ -254,9 +257,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             // textureView가 사용가능할때만 설정 가능
-            if (isGazeNonNull()) {
-                trueGaze.setDisplay(preview);
-            }
+            setCameraPreview(preview);
         }
 
         @Override
@@ -342,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                viewPoint.setType(type == GazeState.TRACKING ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
+                viewPoint.setType(type == TrackingState.TRACKING ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
                 viewPoint.setPosition(x, y);
             }
         });
@@ -378,7 +379,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void setView() {
+    // gazeTracker와 Tracking 상태에 따라 뷰 변경
+    private void setViewAtGazeTrackerState() {
         Log.i(TAG, "gaze : " + isGazeNonNull() + ", tracking " + isTracking());
         runOnUiThread(new Runnable() {
             @Override
@@ -398,56 +400,60 @@ public class MainActivity extends AppCompatActivity {
 
     // view end
 
-    // trueGaze
+    // gazeTracker
     private boolean isTracking() {
         if (isGazeNonNull()) {
-            return trueGaze.isTracking();
+            return gazeTracker.isTracking();
         }
         return false;
     }
     private boolean isGazeNonNull() {
-        return trueGaze != null;
+        return gazeTracker != null;
     }
 
-    private LifeCallback lifeCallback = new LifeCallback() {
+    private InitializationCallback initializationCallback = new InitializationCallback() {
         @Override
-        public void onInitialized() {
-            if (preview.isAvailable()) {
-                trueGaze.setDisplay(preview);
+        public void onInitialized(GazeTracker gazeTracker, int error) {
+            if (gazeTracker != null) {
+                initSuccess(gazeTracker);
+            } else {
+                initFail(error);
             }
-            startTracking();
-            hideProgress();
         }
-
-        @Override
-        public void onInitializeFailed(int i) {
-            String err = "";
-            if (i == TrueGaze.ERROR_PERMISSION) {
-                // 카메라 퍼미션이 없는 경우
-                err = "required permission not granted";
-            } else if (i == TrueGaze.ERROR_AUTHENTICATE) {
-                // 인증 실패
-                err = "authentication failed";
-            } else  {
-                // gaze library 초기화 실패(메모리 부족등의 이유로 초기화 실패)
-                err = "init gaze library fail";
-            }
-            Log.w(TAG, "error description: " + err);
-            trueGaze = null;
-            hideProgress();
-        }
-
-        @Override
-        public void onCameraClose(boolean b) {
-            setView();
-        }
-
     };
+
+    private void initSuccess(GazeTracker gazeTracker) {
+        this.gazeTracker = gazeTracker;
+        if (preview.isAvailable()) {
+            setCameraPreview(preview);
+            this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, eyeMovementCallback, statusCallback);
+        }
+        startTracking();
+        hideProgress();
+    }
+
+    private void initFail(int error) {
+        String err = "";
+        if (error == InitializationErrorType.ERROR_CAMERA_PERMISSION) {
+            // 카메라 퍼미션이 없는 경우
+            err = "required permission not granted";
+        } else if (error == InitializationErrorType.ERROR_AUTHENTICATE) {
+            // 인증 실패
+            err = "authentication failed";
+        } else  {
+            // gaze library 초기화 실패(메모리 부족등의 이유로 초기화 실패)
+            err = "init gaze library fail";
+        }
+        showToast(err, false);
+        Log.w(TAG, "error description: " + err);
+        hideProgress();
+    }
+
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(long timestamp, float x, float y, int state) {
             if (!isUseGazeFilter) {
-                if (state != GazeState.FACE_MISSING && state != GazeState.CALIBRATING) {
+                if (state != TrackingState.FACE_MISSING && state != TrackingState.CALIBRATING) {
                     showGazePoint(x, y, state);
                 }
             }
@@ -456,7 +462,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onFilteredGaze(long timestamp, float x, float y, int state) {
             if (isUseGazeFilter) {
-                if (state != GazeState.CALIBRATING) {
+                if (state != TrackingState.CALIBRATING) {
                     showGazePoint(x, y, state);
                 }
             }
@@ -464,19 +470,20 @@ public class MainActivity extends AppCompatActivity {
     };
     private CalibrationCallback calibrationCallback = new CalibrationCallback() {
         @Override
-        public void onCalibrationProcess(float progress, float x, float y) {
-            if (progress == 1) {
-                setCalibrationPoint(x, y);
-                // 캘리브레이션 좌표가 설정된후 1초간 대기한후 샘플을 수집, 눈이 좌표를 찾고나서 캘리브레이션을 진행해야함
-                backgroundHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        startCollectSamples();
-                    }
-                }, 1000);
-            } else {
-                setCalibrationProgress(progress);
-            }
+        public void onCalibrationProgress(float progress) {
+            setCalibrationProgress(progress);
+        }
+
+        @Override
+        public void onCalibrationNextPoint(final float x, final float y) {
+            setCalibrationPoint(x, y);
+            // 캘리브레이션 좌표가 설정된후 1초간 대기한후 샘플을 수집, 눈이 좌표를 찾고나서 캘리브레이션을 진행해야함
+            backgroundHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    startCollectSamples();
+                }
+            }, 1000);
         }
 
         @Override
@@ -487,7 +494,7 @@ public class MainActivity extends AppCompatActivity {
 
     private EyeMovementCallback eyeMovementCallback = new EyeMovementCallback() {
         @Override
-        public void onEyeMovement(long timestamp, float x, float y, int state) {
+        public void onEyeMovement(long timestamp, long duration, float x, float y, int state) {
             String type = "UNKNOWN";
             if (state == EyeMovementState.FIXATION) {
                 type = "FIXATION";
@@ -500,74 +507,99 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private StatusCallback statusCallback = new StatusCallback() {
+        @Override
+        public void onStarted() {
+            // isTracking true
+            // 카메라 스트림이 시작될때 호출
+            setViewAtGazeTrackerState();
+        }
+
+        @Override
+        public void onStopped(int error) {
+            // isTracking false
+            // 카메라 스트림이 중단될때 호출
+            setViewAtGazeTrackerState();
+            if (error != StatusErrorType.ERROR_NONE) {
+                switch (error) {
+                    case StatusErrorType.ERROR_CAMERA_START:
+                        // 카메라 스트림이 시작하지 못할때
+                        showToast("ERROR_CAMERA_START ", false);
+                        break;
+                    case StatusErrorType.ERROR_CAMERA_INTERRUPT:
+                        // 카메라 포커스를 빼앗길때
+                        showToast("ERROR_CAMERA_INTERRUPT ", false);
+                        break;
+                }
+            }
+        }
+    };
+
     private void initGaze() {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
         // todo 라이센스 키 변경 필요
         String licenseKey = "dev_qhbvkvxxpkdxkg7fcxks7hf7galsdjj8rt13lyh6";
-        trueGaze = new TrueGaze(getApplicationContext(), gazeDevice, licenseKey, lifeCallback, gazeCallback, calibrationCallback, eyeMovementCallback);
+        GazeTracker.initGazeTracker(getApplicationContext(), gazeDevice, licenseKey, initializationCallback);
     }
 
     private void releaseGaze() {
         if (isGazeNonNull()) {
-            trueGaze.release();
-            trueGaze = null;
+            GazeTracker.deinitGazeTracker(gazeTracker);
+            gazeTracker = null;
         }
-        setView();
+        setViewAtGazeTrackerState();
     }
 
     private void startTracking() {
         if (isGazeNonNull()) {
-            trueGaze.startTracking();
+            gazeTracker.startTracking();
         }
-        setView();
     }
 
     private void stopTracking() {
         if (isGazeNonNull()) {
-            trueGaze.stopTracking();
-        }
-        setView();
-    }
-
-    // 5점 캘리브레이션 시작
-    private void startCalibration() {
-        if (isGazeNonNull()) {
-            if (calibrationType == CALIBRATION_ONE_POINT) {
-                startOnePointCalibration();
-            } else {
-                startFivePointCalibration();
-            }
-        }
-        setView();
-    }
-
-    private void startFivePointCalibration() {
-        if (isGazeNonNull()) {
-            trueGaze.startCalibrationInWholeScreen();
+            gazeTracker.stopTracking();
         }
     }
 
-    // 1점 캘리브레이션 시작
-    private void startOnePointCalibration() {
+    private boolean startCalibration() {
+        boolean isSuccess = false;
         if (isGazeNonNull()) {
-            trueGaze.startOnePointCalibrationInWholeScreen();
+            isSuccess = gazeTracker.startCalibration(calibrationType);
         }
+        setViewAtGazeTrackerState();
+        return isSuccess;
     }
 
     // 캘리브레이션에 사용되는 샘플을 수집
-    private void startCollectSamples() {
+    private boolean startCollectSamples() {
+        boolean isSuccess = false;
         if (isGazeNonNull()) {
-            trueGaze.startCollectSamples();
+            isSuccess = gazeTracker.startCollectSamples();
         }
-        setView();
+        setViewAtGazeTrackerState();
+        return isSuccess;
     }
 
     private void stopCalibration() {
         if (isGazeNonNull()) {
-            trueGaze.stopCalibration();
+            gazeTracker.stopCalibration();
         }
         hideCalibrationView();
-        setView();
+        setViewAtGazeTrackerState();
+    }
+
+    private void setCameraPreview(TextureView preview) {
+        if (isGazeNonNull()) {
+            gazeTracker.setCameraPreview(preview);
+        }
+    }
+
+    // deinitGazeTracker를 호출하면 gazeTracker 내부에 남아있던 프리뷰를 지움, 프리뷰만 제거하려면 removeCameraPreview를 사용
+    private void removeCameraPreview() {
+        if (isGazeNonNull()) {
+            gazeTracker.removeCameraPreview();
+        }
     }
 }
