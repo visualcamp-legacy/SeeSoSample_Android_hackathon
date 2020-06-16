@@ -56,6 +56,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Log.i(TAG, "gazeTracker version: " + GazeTracker.getVersionName());
+
         initView();
         checkPermission();
         initHandler();
@@ -276,8 +278,8 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    // 시선 좌표나 캘리브레이션 좌표는 전체 스크린 좌표로만 전달되는데
-    // 안드로이드 스크린 좌표계는 액션바, 상태바, 네비게이션바를 고려안한 좌표계라
+    // 시선 좌표나 캘리브레이션 좌표는 전체 스크린 화면인 절대 좌표로만 전달되는데
+    // 안드로이드 뷰의 좌표계는 액션바, 상태바, 네비게이션바를 고려안한 상대 좌표계라
     // 이 offset을 구해 보정해줘야 제대로 스크린에 정보를 보여줄수 있음
     private void setOffsetOfView() {
         viewLayoutChecker.setOverlayView(viewPoint, new ViewLayoutChecker.ViewLayoutListener() {

@@ -22,7 +22,7 @@ public class CalibrationViewer extends ViewGroup {
   private float x;
   private float y;
   private Paint calibPoint;
-  private Boolean toDraw = false;
+  private Boolean toDraw = true;
   private CalibrationPoint calibrationPoint;
   private int backgroundColor = Color.rgb(0x64,0x5E, 0x5E);
 //  private int backgroundColor = Color.argb(0x88,0x64,0x5E, 0x5E);
