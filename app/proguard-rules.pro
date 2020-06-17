@@ -21,6 +21,6 @@
 #-renamesourcefileattribute SourceFile
 
 # 난독화 예외 필요!!
--keep interface camp.visual.libgaze.callbacks.LibGazeCallback {
+-keep interface camp.visual.libgaze.callbacks.jni.LibGazeJNICallback {
   *;
 }
