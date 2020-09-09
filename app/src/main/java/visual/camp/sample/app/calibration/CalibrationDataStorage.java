@@ -1,4 +1,4 @@
-package visual.camp.sample.app.activity.calibration;
+package visual.camp.sample.app.calibration;
 
 import android.content.Context;
 import android.content.SharedPreferences;

@@ -38,7 +38,7 @@ import camp.visual.gazetracker.state.EyeMovementState;
 import camp.visual.gazetracker.state.TrackingState;
 import camp.visual.gazetracker.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
-import visual.camp.sample.app.activity.calibration.CalibrationDataStorage;
+import visual.camp.sample.app.calibration.CalibrationDataStorage;
 import visual.camp.sample.view.CalibrationViewer;
 import visual.camp.sample.view.PointView;
 
