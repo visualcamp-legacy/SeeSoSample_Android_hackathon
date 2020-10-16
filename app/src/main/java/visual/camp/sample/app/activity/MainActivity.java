@@ -2,6 +2,7 @@ package visual.camp.sample.app.activity;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,7 +27,6 @@ import androidx.core.content.ContextCompat;
 
 import camp.visual.gazetracker.GazeTracker;
 import camp.visual.gazetracker.callback.CalibrationCallback;
-import camp.visual.gazetracker.callback.EyeMovementCallback;
 import camp.visual.gazetracker.callback.GazeCallback;
 import camp.visual.gazetracker.callback.InitializationCallback;
 import camp.visual.gazetracker.callback.StatusCallback;
@@ -34,7 +34,8 @@ import camp.visual.gazetracker.constant.CalibrationModeType;
 import camp.visual.gazetracker.constant.InitializationErrorType;
 import camp.visual.gazetracker.constant.StatusErrorType;
 import camp.visual.gazetracker.device.GazeDevice;
-import camp.visual.gazetracker.state.EyeMovementState;
+import camp.visual.gazetracker.gaze.GazeInfo;
+import camp.visual.gazetracker.state.DeviceState;
 import camp.visual.gazetracker.state.TrackingState;
 import camp.visual.gazetracker.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
@@ -181,6 +182,8 @@ public class MainActivity extends AppCompatActivity {
     // view
     private TextureView preview;
     private View layoutProgress;
+    private View viewWarningFaceMissing;
+    private View viewDeviceState;
     private PointView viewPoint;
     private Button btnInitGaze, btnReleaseGaze;
     private Button btnStartTracking, btnStopTracking;
@@ -192,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isUseGazeFilter = true;
     // 캘리브레이션 방식 관련
     private RadioGroup rgCalibration;
-    private int calibrationType = CalibrationModeType.DEFAULT;
+    private CalibrationModeType calibrationType = CalibrationModeType.DEFAULT;
 
     private AppCompatTextView txtGazeVersion;
     private void initView() {
@@ -201,6 +204,9 @@ public class MainActivity extends AppCompatActivity {
 
         layoutProgress = findViewById(R.id.layout_progress);
         layoutProgress.setOnClickListener(null);
+
+        viewWarningFaceMissing = findViewById(R.id.view_warning_face_missing);
+        viewDeviceState = findViewById(R.id.view_device_state);
 
         preview = findViewById(R.id.preview);
         preview.setSurfaceTextureListener(surfaceTextureListener);
@@ -323,6 +329,49 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void showFaceMissingWarning() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewWarningFaceMissing.setVisibility(View.VISIBLE);
+            }
+        });
+    }
+
+    private void hideFaceMissingWarning() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                viewWarningFaceMissing.setVisibility(View.INVISIBLE);
+            }
+        });
+    }
+
+    private static final int COLOR_DEVICE_STABLE = Color.argb(0, 0, 0, 0);
+    private static final int COLOR_DEVICE_SHAKING = Color.argb(0x80, 0xff, 0, 0);
+    private static final int COLOR_DEVICE_LYING = Color.argb(0x80, 0, 0, 0xff);
+    private void showDeviceState(final DeviceState deviceState) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                switch (deviceState) {
+                    case SHAKING:
+                        // 기기가 흔들릴때
+                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_SHAKING);
+                        break;
+                    case LYING:
+                        // 기기가 누워있을때
+                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_LYING);
+                        break;
+                    case STABLE:
+                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_STABLE);
+                        break;
+
+                }
+            }
+        });
+    }
+
     private View.OnClickListener onClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -353,7 +402,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void showGazePoint(final float x, final float y, final int type) {
+    private void showGazePoint(final float x, final float y, final TrackingState type) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -428,7 +477,7 @@ public class MainActivity extends AppCompatActivity {
 
     private InitializationCallback initializationCallback = new InitializationCallback() {
         @Override
-        public void onInitialized(GazeTracker gazeTracker, int error) {
+        public void onInitialized(GazeTracker gazeTracker, InitializationErrorType error) {
             if (gazeTracker != null) {
                 initSuccess(gazeTracker);
             } else {
@@ -441,13 +490,13 @@ public class MainActivity extends AppCompatActivity {
         this.gazeTracker = gazeTracker;
         if (preview.isAvailable()) {
             setCameraPreview(preview);
-            this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, eyeMovementCallback, statusCallback);
+            this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, statusCallback);
         }
         startTracking();
         hideProgress();
     }
 
-    private void initFail(int error) {
+    private void initFail(InitializationErrorType error) {
         String err = "";
         if (error == InitializationErrorType.ERROR_CAMERA_PERMISSION) {
             // 카메라 퍼미션이 없는 경우
@@ -466,21 +515,22 @@ public class MainActivity extends AppCompatActivity {
 
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
-        public void onGaze(long timestamp, float x, float y, int state) {
-            if (!isUseGazeFilter) {
-                if (state != TrackingState.FACE_MISSING && state != TrackingState.CALIBRATING) {
-                    showGazePoint(x, y, state);
+        public void onGaze(GazeInfo gazeInfo) {
+            TrackingState state = gazeInfo.trackingState;
+            if (state != TrackingState.FACE_MISSING) {
+                hideFaceMissingWarning();
+                if (!gazeTracker.isCalibrating()) {
+                    if (isUseGazeFilter) {
+                        showGazePoint(gazeInfo.filteredX, gazeInfo.filteredY, state);
+                    } else {
+                        showGazePoint(gazeInfo.x, gazeInfo.y, state);
+                    }
                 }
+            } else {
+                showFaceMissingWarning();
             }
-        }
-
-        @Override
-        public void onFilteredGaze(long timestamp, float x, float y, int state) {
-            if (isUseGazeFilter) {
-                if (state != TrackingState.CALIBRATING) {
-                    showGazePoint(x, y, state);
-                }
-            }
+            showDeviceState(gazeInfo.deviceState);
+            Log.i(TAG, "check eyeMovement duration: " + gazeInfo.eyeMovementDuration + " (" + gazeInfo.eyeMovementX + "x" + gazeInfo.eyeMovementY + ") : " + gazeInfo.eyeMovementState);
         }
     };
     private CalibrationCallback calibrationCallback = new CalibrationCallback() {
@@ -509,21 +559,6 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private EyeMovementCallback eyeMovementCallback = new EyeMovementCallback() {
-        @Override
-        public void onEyeMovement(long timestamp, long duration, float x, float y, int state) {
-            String type = "UNKNOWN";
-            if (state == EyeMovementState.FIXATION) {
-                type = "FIXATION";
-            } else if (state == EyeMovementState.SACCADE) {
-                type = "SACCADE";
-            } else {
-                type = "UNKNOWN";
-            }
-            Log.i(TAG, "check eyeMovement timestamp: " + timestamp + " (" + x + "x" + y + ") : " + type);
-        }
-    };
-
     private StatusCallback statusCallback = new StatusCallback() {
         @Override
         public void onStarted() {
@@ -533,17 +568,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onStopped(int error) {
+        public void onStopped(StatusErrorType error) {
             // isTracking false
             // 카메라 스트림이 중단될때 호출
             setViewAtGazeTrackerState();
             if (error != StatusErrorType.ERROR_NONE) {
                 switch (error) {
-                    case StatusErrorType.ERROR_CAMERA_START:
+                    case ERROR_CAMERA_START:
                         // 카메라 스트림이 시작하지 못할때
                         showToast("ERROR_CAMERA_START ", false);
                         break;
-                    case StatusErrorType.ERROR_CAMERA_INTERRUPT:
+                    case ERROR_CAMERA_INTERRUPT:
                         // 카메라 포커스를 빼앗길때
                         showToast("ERROR_CAMERA_INTERRUPT ", false);
                         break;
@@ -556,7 +591,15 @@ public class MainActivity extends AppCompatActivity {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
         // todo 라이센스 키 변경 필요
-        String licenseKey = "dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf";
+        /*
+        local license key
+        X4qHkMW8JCF1m2kOt3JtWIDKOAG1ojPkUUG2N2DqnUzTuvpHiDlnEz8pBBWcMKuow86bVV1MA_yXPqeiopjZ9g4HOr07CCXIGrPlWKsllWmlRGW6cNAQ86XX9Dr8NgYP3i-XLF5x2fYS19z4wIPt79FjhARCmE4OmGbq1RhK3sy=
+
+        server license key
+        dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf
+         */
+
+        String licenseKey = "X4qHkMW8JCF1m2kOt3JtWIDKOAG1ojPkUUG2N2DqnUzTuvpHiDlnEz8pBBWcMKuow86bVV1MA_yXPqeiopjZ9g4HOr07CCXIGrPlWKsllWmlRGW6cNAQ86XX9Dr8NgYP3i-XLF5x2fYS19z4wIPt79FjhARCmE4OmGbq1RhK3sy=";
         GazeTracker.initGazeTracker(getApplicationContext(), gazeDevice, licenseKey, initializationCallback);
     }
 

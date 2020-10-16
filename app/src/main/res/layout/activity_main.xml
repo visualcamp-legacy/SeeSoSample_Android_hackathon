@@ -9,6 +9,16 @@
         android:id="@+id/preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
+    <View
+        android:id="@+id/view_device_state"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+    <View
+        android:id="@+id/view_warning_face_missing"
+        android:visibility="invisible"
+        android:background="@drawable/red_border_line"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
     <LinearLayout
         android:layout_width="200dp"
