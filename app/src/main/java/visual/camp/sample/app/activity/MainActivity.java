@@ -657,23 +657,25 @@ public class MainActivity extends AppCompatActivity {
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(GazeInfo gazeInfo) {
-            TrackingState state = gazeInfo.trackingState;
-            if (state == TrackingState.SUCCESS) {
-                hideTrackingWarning();
-                if (!gazeTracker.isCalibrating()) {
-                    if (isUseGazeFilter) {
-                        if (oneEuroFilterManager.filterValues(gazeInfo.timestamp, gazeInfo.x, gazeInfo.y)) {
-                            float[] filteredPoint = oneEuroFilterManager.getFilteredValues();
-                            showGazePoint(filteredPoint[0], filteredPoint[1], state);
+            if (isGazeNonNull()) {
+                TrackingState state = gazeInfo.trackingState;
+                if (state == TrackingState.SUCCESS) {
+                    hideTrackingWarning();
+                    if (!gazeTracker.isCalibrating()) {
+                        if (isUseGazeFilter) {
+                            if (oneEuroFilterManager.filterValues(gazeInfo.timestamp, gazeInfo.x, gazeInfo.y)) {
+                                float[] filteredPoint = oneEuroFilterManager.getFilteredValues();
+                                showGazePoint(filteredPoint[0], filteredPoint[1], state);
+                            }
+                        } else {
+                            showGazePoint(gazeInfo.x, gazeInfo.y, state);
                         }
-                    } else {
-                        showGazePoint(gazeInfo.x, gazeInfo.y, state);
                     }
+                } else {
+                    showTrackingWarning();
                 }
-            } else {
-                showTrackingWarning();
+                Log.i(TAG, "check eyeMovement " + gazeInfo.eyeMovementState);
             }
-            Log.i(TAG, "check eyeMovement " + gazeInfo.eyeMovementState);
         }
     };
 
