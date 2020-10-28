@@ -792,7 +792,7 @@ public class MainActivity extends AppCompatActivity {
                     + " : regionWidth " + (calibrationRight - calibrationLeft)
                     + ", regionHeight " + (calibrationBottom - calibrationTop);
 
-            viewCalibration.setCalibrationRegion(calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
+//            viewCalibration.setCalibrationRegion(calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
             if (isUseTimeout) {
                 long timeoutMs = (long) (timeout * 1000);
                 isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom, timeoutMs);

@@ -103,10 +103,10 @@ public class CalibrationViewer extends ViewGroup {
     if (toDraw) {
       canvas.drawCircle(x, y, 10, calibPoint);
     }
-    canvas.drawLine(left, top, left, bottom, calibPoint); // left line
-    canvas.drawLine(left, top, right, top, calibPoint); // top line
-    canvas.drawLine(right, top, right, bottom, calibPoint); // right line
-    canvas.drawLine(left, bottom, right, bottom, calibPoint); // bottom line
+//    canvas.drawLine(left, top, left, bottom, calibPoint); // left line
+//    canvas.drawLine(left, top, right, top, calibPoint); // top line
+//    canvas.drawLine(right, top, right, bottom, calibPoint); // right line
+//    canvas.drawLine(left, bottom, right, bottom, calibPoint); // bottom line
 
     if (msg != null) {
       drawText(canvas);
