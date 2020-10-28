@@ -1,4 +1,4 @@
 rootProject.name='SDKSample'
-include ':libgaze-release', ':gazetracker-release'
+include ':libgaze-release', ':gazetracker-release', ':gazetracker-lg-release'
 include ':app'
 include ':view'

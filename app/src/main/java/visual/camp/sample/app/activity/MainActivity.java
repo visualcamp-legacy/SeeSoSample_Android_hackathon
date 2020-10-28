@@ -1,6 +1,7 @@
 package visual.camp.sample.app.activity;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.SurfaceTexture;
@@ -9,31 +10,38 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.provider.Settings;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatSeekBar;
 import androidx.appcompat.widget.AppCompatTextView;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
 
 import camp.visual.gazetracker.GazeTracker;
-import camp.visual.gazetracker.callback.CalibrationCallback;
+import camp.visual.gazetracker.callback.DeviceStateCallback;
 import camp.visual.gazetracker.callback.GazeCallback;
 import camp.visual.gazetracker.callback.InitializationCallback;
 import camp.visual.gazetracker.callback.StatusCallback;
+import camp.visual.gazetracker.callback.TimeoutCalibrationCallback;
 import camp.visual.gazetracker.constant.CalibrationModeType;
 import camp.visual.gazetracker.constant.InitializationErrorType;
 import camp.visual.gazetracker.constant.StatusErrorType;
+import camp.visual.gazetracker.debug.DebugLogger;
 import camp.visual.gazetracker.device.GazeDevice;
+import camp.visual.gazetracker.filter.OneEuroFilterManager;
 import camp.visual.gazetracker.gaze.GazeInfo;
 import camp.visual.gazetracker.state.DeviceState;
 import camp.visual.gazetracker.state.TrackingState;
@@ -62,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "gazeTracker version: " + GazeTracker.getVersionName());
 
         initView();
+        initScreenSize();
         checkPermission();
         initHandler();
     }
@@ -179,10 +188,27 @@ public class MainActivity extends AppCompatActivity {
     }
     // permission end
 
+    private int screenWidth, screenHeight;
+    private int calibrationLeft, calibrationTop, calibrationRight, calibrationBottom;
+    private void initScreenSize() {
+        DisplayMetrics metrics = new DisplayMetrics();
+        WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        windowManager.getDefaultDisplay().getRealMetrics(metrics); // 화면의 전체크기를 구함
+        screenWidth = metrics.widthPixels;
+        screenHeight = metrics.heightPixels;
+
+        calibrationLeft = 0;
+        calibrationTop = 0;
+        calibrationRight = screenWidth;
+        calibrationBottom = screenHeight;
+
+        setCalibrationRegion(DEFAULT_PADDING);
+    }
+
     // view
     private TextureView preview;
     private View layoutProgress;
-    private View viewWarningFaceMissing;
+    private View viewWarningTracking;
     private View viewDeviceState;
     private PointView viewPoint;
     private Button btnInitGaze, btnReleaseGaze;
@@ -195,7 +221,13 @@ public class MainActivity extends AppCompatActivity {
     private boolean isUseGazeFilter = true;
     // 캘리브레이션 방식 관련
     private RadioGroup rgCalibration;
-    private CalibrationModeType calibrationType = CalibrationModeType.DEFAULT;
+    private CalibrationModeType calibrationType = CalibrationModeType.SIX_POINT;
+    private SwitchCompat swUseTimeout;
+    private boolean isUseTimeout = true;
+    private AppCompatTextView txtTimeout;
+    private AppCompatSeekBar seekTimeout;
+    private AppCompatTextView txtPadding;
+    private AppCompatSeekBar seekPadding;
 
     private AppCompatTextView txtGazeVersion;
     private void initView() {
@@ -205,7 +237,7 @@ public class MainActivity extends AppCompatActivity {
         layoutProgress = findViewById(R.id.layout_progress);
         layoutProgress.setOnClickListener(null);
 
-        viewWarningFaceMissing = findViewById(R.id.view_warning_face_missing);
+        viewWarningTracking = findViewById(R.id.view_warning_tracking);
         viewDeviceState = findViewById(R.id.view_device_state);
 
         preview = findViewById(R.id.preview);
@@ -238,15 +270,42 @@ public class MainActivity extends AppCompatActivity {
         swUseGazeFilter.setChecked(isUseGazeFilter);
         RadioButton rbCalibrationOne = findViewById(R.id.rb_calibration_one);
         RadioButton rbCalibrationFive = findViewById(R.id.rb_calibration_five);
-        if (calibrationType == CalibrationModeType.ONE_POINT) {
-            rbCalibrationOne.setChecked(true);
-        } else {
-            // default, five_point는 5점
-            rbCalibrationFive.setChecked(true);
+        RadioButton rbCalibrationSix = findViewById(R.id.rb_calibration_six);
+        switch (calibrationType) {
+            case ONE_POINT:
+                rbCalibrationOne.setChecked(true);
+                break;
+            case SIX_POINT:
+                rbCalibrationSix.setChecked(true);
+                break;
+            default:
+                // default, five_point는 5점
+                rbCalibrationFive.setChecked(true);
+                break;
         }
 
         swUseGazeFilter.setOnCheckedChangeListener(onCheckedChangeSwitch);
         rgCalibration.setOnCheckedChangeListener(onCheckedChangeRadioButton);
+
+        swUseTimeout = findViewById(R.id.sw_use_timeout);
+        swUseTimeout.setChecked(isUseTimeout);
+        txtTimeout = findViewById(R.id.txt_timeout);
+        seekTimeout = findViewById(R.id.seek_timeout);
+        float defaultTimeoutPercentage = DEFAULT_TIMEOUT / AMOUNT_TIMEOUT * 100;
+        seekTimeout.setProgress((int)defaultTimeoutPercentage);
+        setTimeoutText();
+        setTimeoutViewState();
+        swUseTimeout.setOnCheckedChangeListener(onCheckedChangeSwitch);
+        seekTimeout.setOnSeekBarChangeListener(onSeekBarChangeListener);
+
+        txtPadding = findViewById(R.id.txt_padding);
+        seekPadding = findViewById(R.id.seek_padding);
+        float defaultPaddingPercentage = DEFAULT_PADDING / AMOUNT_PADDING * 100;
+        seekPadding.setProgress((int)defaultPaddingPercentage);
+        setPaddingText(DEFAULT_PADDING);
+
+        seekPadding.setOnSeekBarChangeListener(onSeekBarChangeListener);
+
         setOffsetOfView();
     }
 
@@ -258,6 +317,8 @@ public class MainActivity extends AppCompatActivity {
                     calibrationType = CalibrationModeType.ONE_POINT;
                 } else if (checkedId == R.id.rb_calibration_five) {
                     calibrationType = CalibrationModeType.FIVE_POINT;
+                } else if (checkedId == R.id.rb_calibration_six) {
+                    calibrationType = CalibrationModeType.SIX_POINT;
                 }
             }
         }
@@ -267,9 +328,88 @@ public class MainActivity extends AppCompatActivity {
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
             if (buttonView == swUseGazeFilter) {
                 isUseGazeFilter = isChecked;
+            } else if (buttonView == swUseTimeout) {
+                isUseTimeout = isChecked;
+                setTimeoutViewState();
             }
         }
     };
+
+    private static final float DEFAULT_TIMEOUT = 10.f;
+    private static final float DEST_TIMEOUT = 30.f;
+    private static final float MIN_TIMEOUT = 2.f;
+    private static final float AMOUNT_TIMEOUT = DEST_TIMEOUT - MIN_TIMEOUT;
+    private float timeout = DEFAULT_TIMEOUT;
+
+    private static final float DEFAULT_PADDING = 0.1f;
+    private static final float DEST_PADDING = 0.5f; // 50% 이상 패딩이면 뒤집힘
+    private static final float MIN_PADDING = 0.f;
+    private static final float AMOUNT_PADDING = DEST_PADDING - MIN_PADDING;
+
+    private SeekBar.OnSeekBarChangeListener onSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            if (fromUser) {
+                if (seekBar == seekTimeout) {
+                    float percentage = progress / 100f;
+                    timeout = percentage * AMOUNT_TIMEOUT + MIN_TIMEOUT;
+                    setTimeoutText();
+                } else if (seekBar == seekPadding) {
+                    float percentage = progress / 100f;
+                    float padding = percentage * AMOUNT_PADDING + MIN_PADDING;
+                    setCalibrationRegion(padding);
+                    setPaddingText(padding);
+                }
+            }
+        }
+
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+
+        }
+    };
+
+    private void setTimeoutViewState() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                seekTimeout.setEnabled(isUseTimeout);
+            }
+        });
+    }
+
+    private void setTimeoutText() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                String timeoutDesc = timeout + "sec";
+                txtTimeout.setText(timeoutDesc);
+            }
+        });
+    }
+
+    private void setCalibrationRegion(float padding) {
+        calibrationLeft = (int)(padding * screenWidth);
+        calibrationRight = screenWidth - (int)(padding * screenWidth);
+        calibrationTop = (int)(padding * screenHeight);
+        calibrationBottom = screenHeight - (int)(padding * screenHeight);
+        DebugLogger.i(TAG, "setCalibrationRegion " + padding + ":" + calibrationLeft + ", " + calibrationTop + ", " + calibrationRight + ", " + calibrationBottom);
+    }
+
+    private void setPaddingText(final float padding) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                String timeoutDesc = (padding * 100)+ "%";
+                txtPadding.setText(timeoutDesc);
+            }
+        });
+    }
 
     private TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
@@ -329,20 +469,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showFaceMissingWarning() {
+    private void showTrackingWarning() {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                viewWarningFaceMissing.setVisibility(View.VISIBLE);
+                viewWarningTracking.setVisibility(View.VISIBLE);
             }
         });
     }
 
-    private void hideFaceMissingWarning() {
+    private void hideTrackingWarning() {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                viewWarningFaceMissing.setVisibility(View.INVISIBLE);
+                viewWarningTracking.setVisibility(View.INVISIBLE);
             }
         });
     }
@@ -406,7 +546,7 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                viewPoint.setType(type == TrackingState.TRACKING ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
+                viewPoint.setType(type == TrackingState.SUCCESS ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
                 viewPoint.setPosition(x, y);
             }
         });
@@ -490,7 +630,9 @@ public class MainActivity extends AppCompatActivity {
         this.gazeTracker = gazeTracker;
         if (preview.isAvailable()) {
             setCameraPreview(preview);
-            this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, statusCallback);
+            this.gazeTracker.setCallbacks(gazeCallback, statusCallback);
+            this.gazeTracker.setDeviceStateCallback(deviceStateCallback);
+            this.gazeTracker.setTimeoutCalibrationCallback(timeoutCalibrationCallback);
         }
         startTracking();
         hideProgress();
@@ -513,27 +655,38 @@ public class MainActivity extends AppCompatActivity {
         hideProgress();
     }
 
+    private final OneEuroFilterManager oneEuroFilterManager = new OneEuroFilterManager(2);
     private GazeCallback gazeCallback = new GazeCallback() {
         @Override
         public void onGaze(GazeInfo gazeInfo) {
             TrackingState state = gazeInfo.trackingState;
-            if (state != TrackingState.FACE_MISSING) {
-                hideFaceMissingWarning();
+            if (state == TrackingState.SUCCESS) {
+                hideTrackingWarning();
                 if (!gazeTracker.isCalibrating()) {
                     if (isUseGazeFilter) {
-                        showGazePoint(gazeInfo.filteredX, gazeInfo.filteredY, state);
+                        if (oneEuroFilterManager.filterValues(gazeInfo.timestamp, gazeInfo.x, gazeInfo.y)) {
+                            float[] filteredPoint = oneEuroFilterManager.getFilteredValues();
+                            showGazePoint(filteredPoint[0], filteredPoint[1], state);
+                        }
                     } else {
                         showGazePoint(gazeInfo.x, gazeInfo.y, state);
                     }
                 }
             } else {
-                showFaceMissingWarning();
+                showTrackingWarning();
             }
-            showDeviceState(gazeInfo.deviceState);
-            Log.i(TAG, "check eyeMovement duration: " + gazeInfo.eyeMovementDuration + " (" + gazeInfo.eyeMovementX + "x" + gazeInfo.eyeMovementY + ") : " + gazeInfo.eyeMovementState);
+            Log.i(TAG, "check eyeMovement " + gazeInfo.eyeMovementState);
         }
     };
-    private CalibrationCallback calibrationCallback = new CalibrationCallback() {
+
+    private DeviceStateCallback deviceStateCallback = new DeviceStateCallback() {
+        @Override
+        public void onDeviceState(long l, DeviceState deviceState) {
+            showDeviceState(deviceState);
+        }
+    };
+
+    private TimeoutCalibrationCallback timeoutCalibrationCallback = new TimeoutCalibrationCallback() {
         @Override
         public void onCalibrationProgress(float progress) {
             setCalibrationProgress(progress);
@@ -556,6 +709,14 @@ public class MainActivity extends AppCompatActivity {
             // 캘리브레이션이 완료되면 캘리브레이션 데이터를 SharedPreference에 저장함
             CalibrationDataStorage.saveCalibrationData(getApplicationContext(), calibrationData);
             hideCalibrationView();
+            showToast("calibrationFinished", true);
+        }
+
+        @Override
+        public void onCalibrationTimeout() {
+            // 캘리브레이션 시작시 설정한 타임아웃까지 종료되지 않으면 호출
+            hideCalibrationView();
+            showToast("calibrationTimeout", true);
         }
     };
 
@@ -626,7 +787,21 @@ public class MainActivity extends AppCompatActivity {
     private boolean startCalibration() {
         boolean isSuccess = false;
         if (isGazeNonNull()) {
-            isSuccess = gazeTracker.startCalibration(calibrationType);
+            String calibrationDesc = "calibration left " + calibrationLeft + ", top " + calibrationTop
+                    + ", right " + calibrationRight + ", bottom " + calibrationBottom
+                    + " : regionWidth " + (calibrationRight - calibrationLeft)
+                    + ", regionHeight " + (calibrationBottom - calibrationTop);
+
+            viewCalibration.setCalibrationRegion(calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
+            if (isUseTimeout) {
+                long timeoutMs = (long) (timeout * 1000);
+                isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom, timeoutMs);
+            } else {
+                isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
+            }
+            if (!isSuccess) {
+                showToast("calibration start fail\n" + calibrationDesc, false);
+            }
         }
         setViewAtGazeTrackerState();
         return isSuccess;

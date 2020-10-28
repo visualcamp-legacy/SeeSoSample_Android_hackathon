@@ -19,8 +19,8 @@ public class CalibrationViewer extends ViewGroup {
 
   private int[] pointColors;
   private int index = 0;
-  private float x;
-  private float y;
+  private float x = -999;
+  private float y = -999;
   private Paint calibPoint;
   private Boolean toDraw = true;
   private CalibrationPoint calibrationPoint;
@@ -74,7 +74,7 @@ public class CalibrationViewer extends ViewGroup {
     addView(calibrationPoint);
   }
 
-  private float offsetX, offsetY;
+  private int offsetX, offsetY;
   public void setOffset(int x, int y) {
     offsetX = x;
     offsetY = y;
@@ -103,6 +103,11 @@ public class CalibrationViewer extends ViewGroup {
     if (toDraw) {
       canvas.drawCircle(x, y, 10, calibPoint);
     }
+    canvas.drawLine(left, top, left, bottom, calibPoint); // left line
+    canvas.drawLine(left, top, right, top, calibPoint); // top line
+    canvas.drawLine(right, top, right, bottom, calibPoint); // right line
+    canvas.drawLine(left, bottom, right, bottom, calibPoint); // bottom line
+
     if (msg != null) {
       drawText(canvas);
     }
@@ -121,6 +126,14 @@ public class CalibrationViewer extends ViewGroup {
         (int)px + 20,
         (int)py + 20);
     invalidate();
+  }
+
+  private int left, top, right, bottom;
+  public void setCalibrationRegion(int left, int top, int right, int bottom) {
+    this.left = left - offsetX;
+    this.top = top - offsetY;
+    this.right = right - offsetX;
+    this.bottom = bottom - offsetY;
   }
 
   public void changeColor() {
