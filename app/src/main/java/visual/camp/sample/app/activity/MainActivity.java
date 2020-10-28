@@ -39,7 +39,6 @@ import camp.visual.gazetracker.callback.TimeoutCalibrationCallback;
 import camp.visual.gazetracker.constant.CalibrationModeType;
 import camp.visual.gazetracker.constant.InitializationErrorType;
 import camp.visual.gazetracker.constant.StatusErrorType;
-import camp.visual.gazetracker.debug.DebugLogger;
 import camp.visual.gazetracker.device.GazeDevice;
 import camp.visual.gazetracker.filter.OneEuroFilterManager;
 import camp.visual.gazetracker.gaze.GazeInfo;
@@ -398,7 +397,6 @@ public class MainActivity extends AppCompatActivity {
         calibrationRight = screenWidth - (int)(padding * screenWidth);
         calibrationTop = (int)(padding * screenHeight);
         calibrationBottom = screenHeight - (int)(padding * screenHeight);
-        DebugLogger.i(TAG, "setCalibrationRegion " + padding + ":" + calibrationLeft + ", " + calibrationTop + ", " + calibrationRight + ", " + calibrationBottom);
     }
 
     private void setPaddingText(final float padding) {
