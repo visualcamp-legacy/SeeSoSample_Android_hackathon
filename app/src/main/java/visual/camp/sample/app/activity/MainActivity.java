@@ -1,7 +1,6 @@
 package visual.camp.sample.app.activity;
 
 import android.Manifest;
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
@@ -9,22 +8,18 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.provider.Settings;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
-import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatSeekBar;
 import androidx.appcompat.widget.AppCompatTextView;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
@@ -66,7 +61,6 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "gazeTracker version: " + GazeTracker.getVersionName());
 
         initView();
-        initScreenSize();
         checkPermission();
         initHandler();
     }
@@ -184,23 +178,6 @@ public class MainActivity extends AppCompatActivity {
     }
     // permission end
 
-    private int screenWidth, screenHeight;
-    private int calibrationLeft, calibrationTop, calibrationRight, calibrationBottom;
-    private void initScreenSize() {
-        DisplayMetrics metrics = new DisplayMetrics();
-        WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
-        windowManager.getDefaultDisplay().getRealMetrics(metrics); // 화면의 전체크기를 구함
-        screenWidth = metrics.widthPixels;
-        screenHeight = metrics.heightPixels;
-
-        calibrationLeft = 0;
-        calibrationTop = 0;
-        calibrationRight = screenWidth;
-        calibrationBottom = screenHeight;
-
-        setCalibrationRegion(DEFAULT_PADDING);
-    }
-
     // view
     private TextureView preview;
     private View layoutProgress;
@@ -217,8 +194,6 @@ public class MainActivity extends AppCompatActivity {
     // 캘리브레이션 방식 관련
     private RadioGroup rgCalibration;
     private CalibrationModeType calibrationType = CalibrationModeType.DEFAULT;
-    private AppCompatTextView txtPadding;
-    private AppCompatSeekBar seekPadding;
 
     private AppCompatTextView txtGazeVersion;
     private void initView() {
@@ -277,14 +252,6 @@ public class MainActivity extends AppCompatActivity {
         swUseGazeFilter.setOnCheckedChangeListener(onCheckedChangeSwitch);
         rgCalibration.setOnCheckedChangeListener(onCheckedChangeRadioButton);
 
-        txtPadding = findViewById(R.id.txt_padding);
-        seekPadding = findViewById(R.id.seek_padding);
-        float defaultPaddingPercentage = DEFAULT_PADDING / AMOUNT_PADDING * 100;
-        seekPadding.setProgress((int)defaultPaddingPercentage);
-        setPaddingText(DEFAULT_PADDING);
-
-        seekPadding.setOnSeekBarChangeListener(onSeekBarChangeListener);
-
         setOffsetOfView();
     }
 
@@ -310,52 +277,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
-
-    private static final float DEFAULT_PADDING = 0.1f;
-    private static final float DEST_PADDING = 0.5f; // 50% 이상 패딩이면 뒤집힘
-    private static final float MIN_PADDING = 0.f;
-    private static final float AMOUNT_PADDING = DEST_PADDING - MIN_PADDING;
-
-    private SeekBar.OnSeekBarChangeListener onSeekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
-        @Override
-        public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-            if (fromUser) {
-                if (seekBar == seekPadding) {
-                    float percentage = progress / 100f;
-                    float padding = percentage * AMOUNT_PADDING + MIN_PADDING;
-                    setCalibrationRegion(padding);
-                    setPaddingText(padding);
-                }
-            }
-        }
-
-        @Override
-        public void onStartTrackingTouch(SeekBar seekBar) {
-
-        }
-
-        @Override
-        public void onStopTrackingTouch(SeekBar seekBar) {
-
-        }
-    };
-
-    private void setCalibrationRegion(float padding) {
-        calibrationLeft = (int)(padding * screenWidth);
-        calibrationRight = screenWidth - (int)(padding * screenWidth);
-        calibrationTop = (int)(padding * screenHeight);
-        calibrationBottom = screenHeight - (int)(padding * screenHeight);
-    }
-
-    private void setPaddingText(final float padding) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String timeoutDesc = (padding * 100)+ "%";
-                txtPadding.setText(timeoutDesc);
-            }
-        });
-    }
 
     private TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
@@ -695,15 +616,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean startCalibration() {
         boolean isSuccess = false;
         if (isGazeNonNull()) {
-            String calibrationDesc = "calibration left " + calibrationLeft + ", top " + calibrationTop
-                    + ", right " + calibrationRight + ", bottom " + calibrationBottom
-                    + " : regionWidth " + (calibrationRight - calibrationLeft)
-                    + ", regionHeight " + (calibrationBottom - calibrationTop);
-
-//            viewCalibration.setCalibrationRegion(calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
-            isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
+            isSuccess = gazeTracker.startCalibration(calibrationType);
             if (!isSuccess) {
-                showToast("calibration start fail\n" + calibrationDesc, false);
+                showToast("calibration start fail", false);
             }
         }
         setViewAtGazeTrackerState();

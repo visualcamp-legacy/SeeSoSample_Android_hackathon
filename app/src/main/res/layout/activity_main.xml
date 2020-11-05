@@ -109,32 +109,6 @@
                     android:text="6-point"/>
             </RadioGroup>
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <androidx.appcompat.widget.AppCompatTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@android:color/holo_blue_bright"
-                    android:text="calibration region padding: "/>
-                <androidx.appcompat.widget.AppCompatTextView
-                    android:id="@+id/txt_padding"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@android:color/holo_blue_bright"
-                    android:text="0.1"/>
-            </LinearLayout>
-            <androidx.appcompat.widget.AppCompatSeekBar
-                android:id="@+id/seek_padding"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
-        </LinearLayout>
     </LinearLayout>
 
     <androidx.appcompat.widget.AppCompatTextView
