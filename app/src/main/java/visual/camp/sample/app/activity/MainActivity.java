@@ -35,6 +35,7 @@ import camp.visual.gazetracker.constant.StatusErrorType;
 import camp.visual.gazetracker.device.GazeDevice;
 import camp.visual.gazetracker.filter.OneEuroFilterManager;
 import camp.visual.gazetracker.gaze.GazeInfo;
+import camp.visual.gazetracker.state.ScreenState;
 import camp.visual.gazetracker.state.TrackingState;
 import camp.visual.gazetracker.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
@@ -384,11 +385,11 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void showGazePoint(final float x, final float y, final TrackingState type) {
+    private void showGazePoint(final float x, final float y, final ScreenState type) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                viewPoint.setType(type == TrackingState.SUCCESS ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
+                viewPoint.setType(type == ScreenState.INSIDE_OF_SCREEN ? PointView.TYPE_DEFAULT : PointView.TYPE_OUT_OF_SCREEN);
                 viewPoint.setPosition(x, y);
             }
         });
@@ -507,10 +508,10 @@ public class MainActivity extends AppCompatActivity {
                         if (isUseGazeFilter) {
                             if (oneEuroFilterManager.filterValues(gazeInfo.timestamp, gazeInfo.x, gazeInfo.y)) {
                                 float[] filteredPoint = oneEuroFilterManager.getFilteredValues();
-                                showGazePoint(filteredPoint[0], filteredPoint[1], state);
+                                showGazePoint(filteredPoint[0], filteredPoint[1], gazeInfo.screenState);
                             }
                         } else {
-                            showGazePoint(gazeInfo.x, gazeInfo.y, state);
+                            showGazePoint(gazeInfo.x, gazeInfo.y, gazeInfo.screenState);
                         }
                     }
                 } else {
