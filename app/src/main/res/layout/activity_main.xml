@@ -10,10 +10,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
     <View
-        android:id="@+id/view_device_state"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-    <View
         android:id="@+id/view_warning_tracking"
         android:visibility="invisible"
         android:background="@drawable/red_border_line"
@@ -113,39 +109,7 @@
                     android:text="6-point"/>
             </RadioGroup>
         </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/sw_use_timeout"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintLeft_toLeftOf="parent"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@android:color/holo_blue_bright"
-                android:text="use timeout"/>
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <androidx.appcompat.widget.AppCompatTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@android:color/holo_blue_bright"
-                    android:text="calibration timeout: "/>
-                <androidx.appcompat.widget.AppCompatTextView
-                    android:id="@+id/txt_timeout"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@android:color/holo_blue_bright"
-                    android:text="10sec"/>
-            </LinearLayout>
-            <androidx.appcompat.widget.AppCompatSeekBar
-                android:id="@+id/seek_timeout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
-        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

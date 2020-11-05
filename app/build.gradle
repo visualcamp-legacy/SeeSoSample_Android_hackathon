@@ -30,7 +30,7 @@ dependencies {
     implementation "androidx.constraintlayout:constraintlayout:${constraintlayoutVersion}"
     implementation project(":view")
     implementation project(":libgaze-release")
-    implementation project(':gazetracker-lg-release')
+    implementation project(':gazetracker-release')
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'

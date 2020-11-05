@@ -3,7 +3,6 @@ package visual.camp.sample.app.activity;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,18 +30,16 @@ import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
 
 import camp.visual.gazetracker.GazeTracker;
-import camp.visual.gazetracker.callback.DeviceStateCallback;
+import camp.visual.gazetracker.callback.CalibrationCallback;
 import camp.visual.gazetracker.callback.GazeCallback;
 import camp.visual.gazetracker.callback.InitializationCallback;
 import camp.visual.gazetracker.callback.StatusCallback;
-import camp.visual.gazetracker.callback.TimeoutCalibrationCallback;
 import camp.visual.gazetracker.constant.CalibrationModeType;
 import camp.visual.gazetracker.constant.InitializationErrorType;
 import camp.visual.gazetracker.constant.StatusErrorType;
 import camp.visual.gazetracker.device.GazeDevice;
 import camp.visual.gazetracker.filter.OneEuroFilterManager;
 import camp.visual.gazetracker.gaze.GazeInfo;
-import camp.visual.gazetracker.state.DeviceState;
 import camp.visual.gazetracker.state.TrackingState;
 import camp.visual.gazetracker.util.ViewLayoutChecker;
 import visual.camp.sample.app.R;
@@ -208,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
     private TextureView preview;
     private View layoutProgress;
     private View viewWarningTracking;
-    private View viewDeviceState;
     private PointView viewPoint;
     private Button btnInitGaze, btnReleaseGaze;
     private Button btnStartTracking, btnStopTracking;
@@ -220,11 +216,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isUseGazeFilter = true;
     // 캘리브레이션 방식 관련
     private RadioGroup rgCalibration;
-    private CalibrationModeType calibrationType = CalibrationModeType.SIX_POINT;
-    private SwitchCompat swUseTimeout;
-    private boolean isUseTimeout = true;
-    private AppCompatTextView txtTimeout;
-    private AppCompatSeekBar seekTimeout;
+    private CalibrationModeType calibrationType = CalibrationModeType.DEFAULT;
     private AppCompatTextView txtPadding;
     private AppCompatSeekBar seekPadding;
 
@@ -237,7 +229,6 @@ public class MainActivity extends AppCompatActivity {
         layoutProgress.setOnClickListener(null);
 
         viewWarningTracking = findViewById(R.id.view_warning_tracking);
-        viewDeviceState = findViewById(R.id.view_device_state);
 
         preview = findViewById(R.id.preview);
         preview.setSurfaceTextureListener(surfaceTextureListener);
@@ -286,17 +277,6 @@ public class MainActivity extends AppCompatActivity {
         swUseGazeFilter.setOnCheckedChangeListener(onCheckedChangeSwitch);
         rgCalibration.setOnCheckedChangeListener(onCheckedChangeRadioButton);
 
-        swUseTimeout = findViewById(R.id.sw_use_timeout);
-        swUseTimeout.setChecked(isUseTimeout);
-        txtTimeout = findViewById(R.id.txt_timeout);
-        seekTimeout = findViewById(R.id.seek_timeout);
-        float defaultTimeoutPercentage = DEFAULT_TIMEOUT / AMOUNT_TIMEOUT * 100;
-        seekTimeout.setProgress((int)defaultTimeoutPercentage);
-        setTimeoutText();
-        setTimeoutViewState();
-        swUseTimeout.setOnCheckedChangeListener(onCheckedChangeSwitch);
-        seekTimeout.setOnSeekBarChangeListener(onSeekBarChangeListener);
-
         txtPadding = findViewById(R.id.txt_padding);
         seekPadding = findViewById(R.id.seek_padding);
         float defaultPaddingPercentage = DEFAULT_PADDING / AMOUNT_PADDING * 100;
@@ -327,18 +307,9 @@ public class MainActivity extends AppCompatActivity {
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
             if (buttonView == swUseGazeFilter) {
                 isUseGazeFilter = isChecked;
-            } else if (buttonView == swUseTimeout) {
-                isUseTimeout = isChecked;
-                setTimeoutViewState();
             }
         }
     };
-
-    private static final float DEFAULT_TIMEOUT = 10.f;
-    private static final float DEST_TIMEOUT = 30.f;
-    private static final float MIN_TIMEOUT = 2.f;
-    private static final float AMOUNT_TIMEOUT = DEST_TIMEOUT - MIN_TIMEOUT;
-    private float timeout = DEFAULT_TIMEOUT;
 
     private static final float DEFAULT_PADDING = 0.1f;
     private static final float DEST_PADDING = 0.5f; // 50% 이상 패딩이면 뒤집힘
@@ -349,11 +320,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
             if (fromUser) {
-                if (seekBar == seekTimeout) {
-                    float percentage = progress / 100f;
-                    timeout = percentage * AMOUNT_TIMEOUT + MIN_TIMEOUT;
-                    setTimeoutText();
-                } else if (seekBar == seekPadding) {
+                if (seekBar == seekPadding) {
                     float percentage = progress / 100f;
                     float padding = percentage * AMOUNT_PADDING + MIN_PADDING;
                     setCalibrationRegion(padding);
@@ -372,25 +339,6 @@ public class MainActivity extends AppCompatActivity {
 
         }
     };
-
-    private void setTimeoutViewState() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                seekTimeout.setEnabled(isUseTimeout);
-            }
-        });
-    }
-
-    private void setTimeoutText() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String timeoutDesc = timeout + "sec";
-                txtTimeout.setText(timeoutDesc);
-            }
-        });
-    }
 
     private void setCalibrationRegion(float padding) {
         calibrationLeft = (int)(padding * screenWidth);
@@ -481,31 +429,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 viewWarningTracking.setVisibility(View.INVISIBLE);
-            }
-        });
-    }
-
-    private static final int COLOR_DEVICE_STABLE = Color.argb(0, 0, 0, 0);
-    private static final int COLOR_DEVICE_SHAKING = Color.argb(0x80, 0xff, 0, 0);
-    private static final int COLOR_DEVICE_LYING = Color.argb(0x80, 0, 0, 0xff);
-    private void showDeviceState(final DeviceState deviceState) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                switch (deviceState) {
-                    case SHAKING:
-                        // 기기가 흔들릴때
-                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_SHAKING);
-                        break;
-                    case LYING:
-                        // 기기가 누워있을때
-                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_LYING);
-                        break;
-                    case STABLE:
-                        viewDeviceState.setBackgroundColor(COLOR_DEVICE_STABLE);
-                        break;
-
-                }
             }
         });
     }
@@ -628,9 +551,7 @@ public class MainActivity extends AppCompatActivity {
         this.gazeTracker = gazeTracker;
         if (preview.isAvailable()) {
             setCameraPreview(preview);
-            this.gazeTracker.setCallbacks(gazeCallback, statusCallback);
-            this.gazeTracker.setDeviceStateCallback(deviceStateCallback);
-            this.gazeTracker.setTimeoutCalibrationCallback(timeoutCalibrationCallback);
+            this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, statusCallback);
         }
         startTracking();
         hideProgress();
@@ -679,14 +600,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private DeviceStateCallback deviceStateCallback = new DeviceStateCallback() {
-        @Override
-        public void onDeviceState(long l, DeviceState deviceState) {
-            showDeviceState(deviceState);
-        }
-    };
-
-    private TimeoutCalibrationCallback timeoutCalibrationCallback = new TimeoutCalibrationCallback() {
+    private CalibrationCallback calibrationCallback = new CalibrationCallback() {
         @Override
         public void onCalibrationProgress(float progress) {
             setCalibrationProgress(progress);
@@ -710,13 +624,6 @@ public class MainActivity extends AppCompatActivity {
             CalibrationDataStorage.saveCalibrationData(getApplicationContext(), calibrationData);
             hideCalibrationView();
             showToast("calibrationFinished", true);
-        }
-
-        @Override
-        public void onCalibrationTimeout() {
-            // 캘리브레이션 시작시 설정한 타임아웃까지 종료되지 않으면 호출
-            hideCalibrationView();
-            showToast("calibrationTimeout", true);
         }
     };
 
@@ -760,7 +667,7 @@ public class MainActivity extends AppCompatActivity {
         dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf
          */
 
-        String licenseKey = "X4qHkMW8JCF1m2kOt3JtWIDKOAG1ojPkUUG2N2DqnUzTuvpHiDlnEz8pBBWcMKuow86bVV1MA_yXPqeiopjZ9g4HOr07CCXIGrPlWKsllWmlRGW6cNAQ86XX9Dr8NgYP3i-XLF5x2fYS19z4wIPt79FjhARCmE4OmGbq1RhK3sy=";
+        String licenseKey = "dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf";
         GazeTracker.initGazeTracker(getApplicationContext(), gazeDevice, licenseKey, initializationCallback);
     }
 
@@ -793,12 +700,7 @@ public class MainActivity extends AppCompatActivity {
                     + ", regionHeight " + (calibrationBottom - calibrationTop);
 
 //            viewCalibration.setCalibrationRegion(calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
-            if (isUseTimeout) {
-                long timeoutMs = (long) (timeout * 1000);
-                isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom, timeoutMs);
-            } else {
-                isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
-            }
+            isSuccess = gazeTracker.startCalibration(calibrationType, calibrationLeft, calibrationTop, calibrationRight, calibrationBottom);
             if (!isSuccess) {
                 showToast("calibration start fail\n" + calibrationDesc, false);
             }
