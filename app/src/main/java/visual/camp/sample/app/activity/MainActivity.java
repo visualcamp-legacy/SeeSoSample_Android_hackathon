@@ -665,6 +665,7 @@ public class MainActivity extends AppCompatActivity {
 
         server license key
         dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf
+        prod_rziioq0freuyt56lctnt2r0qcwgrjy53q0kligk0
          */
 
         String licenseKey = "dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf";
