@@ -116,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
     // permission
     private void checkPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            //퍼미션 상태 확인
+            // Check permission status
             if (!hasPermissions(PERMISSIONS)) {
 
                 requestPermissions(PERMISSIONS, REQ_PERMISSION);
@@ -130,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(Build.VERSION_CODES.M)
     private boolean hasPermissions(String[] permissions) {
         int result;
-        //스트링 배열에 있는 퍼미션들의 허가 상태 여부 확인
+        // Check permission status in string array
         for (String perms : permissions) {
             if (perms.equals(Manifest.permission.SYSTEM_ALERT_WINDOW)) {
                 if (!Settings.canDrawOverlays(this)) {
@@ -139,11 +139,11 @@ public class MainActivity extends AppCompatActivity {
             }
             result = ContextCompat.checkSelfPermission(this, perms);
             if (result == PackageManager.PERMISSION_DENIED) {
-                //허가 안된 퍼미션 발견
+                // When if unauthorized permission found
                 return false;
             }
         }
-        //모든 퍼미션이 허가되었음
+        // When if all permission allowed
         return true;
     }
 
@@ -189,10 +189,10 @@ public class MainActivity extends AppCompatActivity {
     private Button btnStartCalibration, btnStopCalibration, btnSetCalibration;
     private CalibrationViewer viewCalibration;
 
-    // 시선 좌표 필터 관련
+    // gaze coord filter
     private SwitchCompat swUseGazeFilter;
     private boolean isUseGazeFilter = true;
-    // 캘리브레이션 방식 관련
+    // calibration type
     private RadioGroup rgCalibration;
     private CalibrationModeType calibrationType = CalibrationModeType.DEFAULT;
 
@@ -245,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
                 rbCalibrationSix.setChecked(true);
                 break;
             default:
-                // default, five_point는 5점
+                // default = five point
                 rbCalibrationFive.setChecked(true);
                 break;
         }
@@ -282,7 +282,7 @@ public class MainActivity extends AppCompatActivity {
     private TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            // textureView가 사용가능할때만 설정 가능
+            // When if textureView available
             setCameraPreview(preview);
         }
 
@@ -302,9 +302,9 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    // 시선 좌표나 캘리브레이션 좌표는 전체 스크린 화면인 절대 좌표로만 전달되는데
-    // 안드로이드 뷰의 좌표계는 액션바, 상태바, 네비게이션바를 고려안한 상대 좌표계라
-    // 이 offset을 구해 보정해줘야 제대로 스크린에 정보를 보여줄수 있음
+    // The gaze or calibration coordinates are delivered only to the absolute coordinates of the entire screen.
+    // The coordinate system of the Android view is a relative coordinate system,
+    // so the offset of the view to show the coordinates must be obtained and corrected to properly show the information on the screen.
     private void setOffsetOfView() {
         viewLayoutChecker.setOverlayView(viewPoint, new ViewLayoutChecker.ViewLayoutListener() {
             @Override
@@ -425,7 +425,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // gazeTracker와 Tracking 상태에 따라 뷰 변경
     private void setViewAtGazeTrackerState() {
         Log.i(TAG, "gaze : " + isGazeNonNull() + ", tracking " + isTracking());
         runOnUiThread(new Runnable() {
@@ -472,6 +471,7 @@ public class MainActivity extends AppCompatActivity {
     private void initSuccess(GazeTracker gazeTracker) {
         this.gazeTracker = gazeTracker;
         if (preview.isAvailable()) {
+            // When if textureView available
             setCameraPreview(preview);
             this.gazeTracker.setCallbacks(gazeCallback, calibrationCallback, statusCallback);
         }
@@ -482,13 +482,14 @@ public class MainActivity extends AppCompatActivity {
     private void initFail(InitializationErrorType error) {
         String err = "";
         if (error == InitializationErrorType.ERROR_CAMERA_PERMISSION) {
-            // 카메라 퍼미션이 없는 경우
+            // When if camera permission doesn not exists
             err = "required permission not granted";
         } else if (error == InitializationErrorType.ERROR_AUTHENTICATE) {
-            // 인증 실패
+            // Authentication failure (License Key)
             err = "authentication failed";
         } else  {
-            // gaze library 초기화 실패(메모리 부족등의 이유로 초기화 실패)
+            // Gaze library initialization failure
+            // It can ba caused by several reasons(i.e. Out of memory).
             err = "init gaze library fail";
         }
         showToast(err, false);
@@ -531,7 +532,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCalibrationNextPoint(final float x, final float y) {
             setCalibrationPoint(x, y);
-            // 캘리브레이션 좌표가 설정된후 1초간 대기한후 샘플을 수집, 눈이 좌표를 찾고나서 캘리브레이션을 진행해야함
+            // Give time to eyes find calibration coordinates, then collect data samples
             backgroundHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -542,7 +543,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onCalibrationFinished(double[] calibrationData) {
-            // 캘리브레이션이 완료되면 캘리브레이션 데이터를 SharedPreference에 저장함
+            // When calibration is finished, calibration data is stored to SharedPreference
             CalibrationDataStorage.saveCalibrationData(getApplicationContext(), calibrationData);
             hideCalibrationView();
             showToast("calibrationFinished", true);
@@ -553,23 +554,23 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onStarted() {
             // isTracking true
-            // 카메라 스트림이 시작될때 호출
+            // When if camera stream starting
             setViewAtGazeTrackerState();
         }
 
         @Override
         public void onStopped(StatusErrorType error) {
             // isTracking false
-            // 카메라 스트림이 중단될때 호출
+            // When if camera stream stopping
             setViewAtGazeTrackerState();
             if (error != StatusErrorType.ERROR_NONE) {
                 switch (error) {
                     case ERROR_CAMERA_START:
-                        // 카메라 스트림이 시작하지 못할때
+                        // When if camera stream can't start
                         showToast("ERROR_CAMERA_START ", false);
                         break;
                     case ERROR_CAMERA_INTERRUPT:
-                        // 카메라 포커스를 빼앗길때
+                        // When if camera stream interrupted
                         showToast("ERROR_CAMERA_INTERRUPT ", false);
                         break;
                 }
@@ -580,7 +581,7 @@ public class MainActivity extends AppCompatActivity {
     private void initGaze() {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
-        // todo 라이센스 키 변경 필요
+        // todo change licence key
         /*
         local license key
         X4qHkMW8JCF1m2kOt3JtWIDKOAG1ojPkUUG2N2DqnUzTuvpHiDlnEz8pBBWcMKuow86bVV1MA_yXPqeiopjZ9g4HOr07CCXIGrPlWKsllWmlRGW6cNAQ86XX9Dr8NgYP3i-XLF5x2fYS19z4wIPt79FjhARCmE4OmGbq1RhK3sy=
@@ -626,7 +627,7 @@ public class MainActivity extends AppCompatActivity {
         return isSuccess;
     }
 
-    // 캘리브레이션에 사용되는 샘플을 수집
+    // Collect the data samples used for calibration
     private boolean startCollectSamples() {
         boolean isSuccess = false;
         if (isGazeNonNull()) {
@@ -648,16 +649,14 @@ public class MainActivity extends AppCompatActivity {
         if (isGazeNonNull()) {
             double[] calibrationData = CalibrationDataStorage.loadCalibrationData(getApplicationContext());
             if (calibrationData != null) {
-                // 저장한 데이터가 있을때
+                // When if stored calibration data in SharedPreference
                 if (!gazeTracker.setCalibrationData(calibrationData)) {
-                    // 캘리브레이션 도중 데이터를 설정하면 false를 리턴하며 데이터를 설정하지 않음
                     showToast("calibrating", false);
                 } else {
-                    // 캘리브레이션 데이터 설정 성공
                     showToast("setCalibrationData success", false);
                 }
             } else {
-                // 저장한 데이터가 없을때
+                // When if not stored calibration data in SharedPreference
                 showToast("Calibration data is null", true);
             }
         }
@@ -670,7 +669,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // deinitGazeTracker를 호출하면 gazeTracker 내부에 남아있던 프리뷰를 지움, 프리뷰만 제거하려면 removeCameraPreview를 사용
     private void removeCameraPreview() {
         if (isGazeNonNull()) {
             gazeTracker.removeCameraPreview();
