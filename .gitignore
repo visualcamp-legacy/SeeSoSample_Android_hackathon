@@ -276,3 +276,4 @@ Temporary Items
 /00backup_dir
 **/.cxx/
 output.json
+app/release/*
