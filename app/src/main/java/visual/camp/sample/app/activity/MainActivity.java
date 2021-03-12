@@ -426,7 +426,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setViewAtGazeTrackerState() {
-        Log.i(TAG, "gaze : " + isGazeNonNull() + ", tracking " + isTracking());
+//        Log.i(TAG, "gaze : " + isGazeNonNull() + ", tracking " + isTracking());
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -484,13 +484,10 @@ public class MainActivity extends AppCompatActivity {
         if (error == InitializationErrorType.ERROR_CAMERA_PERMISSION) {
             // When if camera permission doesn not exists
             err = "required permission not granted";
-        } else if (error == InitializationErrorType.ERROR_AUTHENTICATE) {
-            // Authentication failure (License Key)
-            err = "authentication failed";
         } else  {
             // Gaze library initialization failure
             // It can ba caused by several reasons(i.e. Out of memory).
-            err = "init gaze library fail";
+            err = error.toString();
         }
         showToast(err, false);
         Log.w(TAG, "error description: " + err);
@@ -518,7 +515,7 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     showTrackingWarning();
                 }
-                Log.i(TAG, "check eyeMovement " + gazeInfo.eyeMovementState);
+//                Log.i(TAG, "check eyeMovement " + gazeInfo.eyeMovementState);
             }
         }
     };
