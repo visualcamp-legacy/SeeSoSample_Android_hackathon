@@ -540,7 +540,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onCalibrationFinished(double[] calibrationData) {
-            // When calibration is finished, calibration data is stored to SharedPreference
+            // 캘리브레이션이 끝나면 자동으로 gazepoint에 적용되어있고
+            // calibrationDataStorage에 calibrationData를 넣는것은 다음번에 캘리브레이션 하지않고 사용하게 하기 위함이다.
             CalibrationDataStorage.saveCalibrationData(getApplicationContext(), calibrationData);
             hideCalibrationView();
             showToast("calibrationFinished", true);
@@ -578,17 +579,15 @@ public class MainActivity extends AppCompatActivity {
     private void initGaze() {
         showProgress();
         GazeDevice gazeDevice = new GazeDevice();
-        // todo change licence key
-        /*
-        local license key
-        X4qHkMW8JCF1m2kOt3JtWIDKOAG1ojPkUUG2N2DqnUzTuvpHiDlnEz8pBBWcMKuow86bVV1MA_yXPqeiopjZ9g4HOr07CCXIGrPlWKsllWmlRGW6cNAQ86XX9Dr8NgYP3i-XLF5x2fYS19z4wIPt79FjhARCmE4OmGbq1RhK3sy=
+        if (gazeDevice.isCurrentDeviceFound()) {
+            // 돌린 기기의 device info가 있는지확인
+            Log.d(TAG, "이 디바이스는 gazeinfo 설정이 필요 없습니다.");
+        } else {
+            // 예시입니다. SM-T720은 갤럭시탭 s5e 모델명
+            gazeDevice.addDeviceInfo("SM-T720", -72f, -4f);
+        }
 
-        server license key
-        dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf
-        prod_rziioq0freuyt56lctnt2r0qcwgrjy53q0kligk0
-         */
-
-        String licenseKey = "dev_r6lhgvzp6c9qrujmix67580y3r207itavw0fonmf";
+        String licenseKey = "INPUT YOUR LICENSE KEY";
         GazeTracker.initGazeTracker(getApplicationContext(), gazeDevice, licenseKey, initializationCallback);
     }
 
